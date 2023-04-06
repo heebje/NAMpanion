@@ -17,18 +17,23 @@ using namespace iplug;
 using namespace igraphics;
 
 const int     kNumPresets       = 1;
-const int     kMaxNumChannels   =    2;
+const int     kMaxNumChannels   = 2;
+
 const double  kSmoothingTimeMs  = 20.0; // Parameter smoothing in milliseconds
+
 const double  kLowFreqMin       =   98.00;
 const double  kHighFreqMax      = 5274.04;
 
 const double  kLowFreqMax       = sqrt(kLowFreqMin * kHighFreqMax);
 const double  kHighFreqMin      = kLowFreqMax;
 
-const double  kMidFreqDefault   = kLowFreqMax;
+// const double  kMidFreqDefault   = kLowFreqMax;
 
-const double  kLowBoostMax      =  6.0;
+const double  kLowBoostMax      = 6.0;
+const double  kLowBoostSlope    = 1.0;
+
 const double  kHighBoostMax     = 18.0;
+const double  kHighBoostSlope   = 1.0;
 
 const double  kDCBlockFreq      = 10.0;
 
@@ -76,21 +81,8 @@ IRECT controlCoordinates[kNumParams] = {
   IRECT(60 + 5*84, 100, 123 + 5*84, 215), // Active
 };
 
-class SmootherCallback final: public SP_SmootherCallback {
-public:
-  SmootherCallback();
-  void getParamInfo(void*           _plugin,
-                    int             _paramNumber,
-                    double&         _sampleRate,
-                    double&         _value,
-                    SP_DisplayType& _dt) override;
-};
-
 class NAMpanion final: public Plugin {
 private:
-  //// Parameter smoothing:
-  //double                        m_ParamValues  [kNumParams];
-  //Iir::Butterworth::LowPass<1>  m_ParamSmoother[kNumParams];
 
   double inline static getLowFreq(const double lowPos) {
     return kLowFreqMin * pow(kLowFreqMax / kLowFreqMin, abs(lowPos / paramValues[kParamLow].maximum));
@@ -104,8 +96,10 @@ private:
     return sqrt(getLowFreq(lowPos) * getHighFreq(highPos));
   }
 
-  double inline static getMidQ(const double mid_dB) {
-    return pow(sqrt(0.5), mid_dB / paramValues[kParamMid].maximum); // Make sure Q = 0.71 at maximum mid setting
+  double inline static getMidBandwidth(const double mid_dB) {
+    //return pow(3.0, (mid_dB - (mid_dB-9.0)*0.75) / paramValues[kParamMid].maximum); // Make sure Q = 0.71 at maximum mid setting
+    return pow(4.0/3.0, (mid_dB + 27.0) / paramValues[kParamMid].maximum); // Make sure Q = 0.71 at maximum mid setting
+
   }
 
   double inline static getHighFreq(const double highPos) {
@@ -116,25 +110,21 @@ private:
     return (tanh(2.0 * highPos / kHighBoostMax) + 1.0) * kHighBoostMax / 2.0;
   }
 
-  // Smoothed values:
+  // Smoothed parameter values:
+  double  m_Drive_Real  = DBToAmp(paramValues[kParamDrive].default);
 
-  double                          m_Drive_dB          = paramValues[kParamDrive].default;
-  double                          m_Drive_Real        = DBToAmp(m_Drive_dB);
+  double  m_LowPos      = paramValues[kParamLow].default;   // Position of Low knob, -10..+10
+  double  m_Mid_dB      = paramValues[kParamMid].default;
+  double  m_HighPos     = paramValues[kParamHigh].default;  // Position of High knob, -10..+10
 
-  double                          m_LowPos            = paramValues[kParamLow].default;   // Position of Low knob, -10..+10
-  double                          m_Mid_dB            = paramValues[kParamMid].default;
-  double                          m_HighPos           = paramValues[kParamHigh].default;  // Position of High knob, -10..+10
+  double  m_Output_Real = DBToAmp(paramValues[kParamOutput].default);
 
-  double                          m_Output_dB         = paramValues[kParamOutput].default;
-  double                          m_Output_Real       = DBToAmp(m_Output_dB);
-
-  double                          m_Active            = paramValues[kParamActive].default;
+  double  m_Active      = paramValues[kParamActive].default;
 
   // Knobs (for enabling / disabling):
   IControl*                       m_Controls[kNumParams];
 
-  SmootherCallback                smootherCallback;
-  SP_ParameterSmoother            smoother            = SP_ParameterSmoother(kNumParams);
+  ParameterSmoother               smoother = ParameterSmoother(kNumParams);
 
   Iir::Butterworth::HighPass<1>   lowCut      [kMaxNumChannels];
   Iir::RBJ::LowShelf              lowShelf    [kMaxNumChannels];
@@ -145,11 +135,12 @@ private:
   Iir::RBJ::LowPass               highCut     [kMaxNumChannels];
   Iir::RBJ::HighShelf             highShelf   [kMaxNumChannels];
 
-  WaveShaperAsym2              waveshaper  [kMaxNumChannels];
+  WaveShaperAsym2                 waveshaper  [kMaxNumChannels];
   Iir::Butterworth::HighPass<1>   dcBlock     [kMaxNumChannels];
 
   inline void updateKnobs();
-  inline void updateStages(double _sampleRate, bool _resetting);
+  void AdjustMid(int ch);
+  inline void updateStages(bool _resetting);
 
 public:
   NAMpanion(const InstanceInfo& info);

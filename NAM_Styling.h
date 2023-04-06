@@ -29,14 +29,16 @@ namespace NAM_Styling {
     true, // Show label
     true, // Show value
     activeColorSpec,
-    { DEFAULT_TEXT_SIZE + 5.f,
-    EVAlign::Middle,
-    NAM_3
-  }, // Knob label text
-    { DEFAULT_TEXT_SIZE + 5.f,
-    EVAlign::Bottom,
-    NAM_3
-  }, // Knob value text
+    {
+      DEFAULT_TEXT_SIZE + 5.f,
+      EVAlign::Middle,
+      NAM_3
+    }, // Knob label text
+    {
+      DEFAULT_TEXT_SIZE + 5.f,
+      EVAlign::Bottom,
+      NAM_3
+    }, // Knob value text
     DEFAULT_HIDE_CURSOR,
     DEFAULT_DRAW_FRAME,
     false,

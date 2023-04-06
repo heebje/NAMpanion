@@ -11,31 +11,6 @@
 using namespace NAM_Styling;
 using namespace NAMpanion_Common;
 
-SmootherCallback::SmootherCallback() {
-  // Sanity check:
-  if (iplug::IParam::EDisplayType::kDisplayLinear     != SP_DisplayType::kDisplayLinear      ||
-      iplug::IParam::EDisplayType::kDisplayLog        != SP_DisplayType::kDisplayLog         ||
-      iplug::IParam::EDisplayType::kDisplayExp        != SP_DisplayType::kDisplayExp         ||
-      iplug::IParam::EDisplayType::kDisplaySquared    != SP_DisplayType::kDisplaySquared     ||
-      iplug::IParam::EDisplayType::kDisplaySquareRoot != SP_DisplayType::kDisplaySquareRoot  ||
-      iplug::IParam::EDisplayType::kDisplayCubed      != SP_DisplayType::kDisplayCubed       ||
-      iplug::IParam::EDisplayType::kDisplayCubeRoot   != SP_DisplayType::kDisplayCubeRoot) {
-    FAIL(SmootherCallback);
-  }
-}
-
-void SmootherCallback::getParamInfo(void*           _plugin,
-                                    int             _paramNumber,
-                                    double&         _sampleRate,
-                                    double&         _value,
-                                    SP_DisplayType& _dt) {
-
-  _sampleRate =                  ((Plugin*)_plugin)->GetSampleRate();
-  _value      =                  ((Plugin*)_plugin)->GetParam(_paramNumber)->Value();
-  _dt         = (SP_DisplayType) ((Plugin*)_plugin)->GetParam(_paramNumber)->DisplayType();
-
-}
-
 NAMpanion::NAMpanion(const InstanceInfo& info): iplug::Plugin(info, MakeConfig(kNumParams, kNumPresets)) {
 
   for (int p = 0; p < kNumParams; p++) {
@@ -85,10 +60,8 @@ NAMpanion::NAMpanion(const InstanceInfo& info): iplug::Plugin(info, MakeConfig(k
 
   }
 
-  smoother.reset(this, 
-  				 kNumParams, 
-  				 kSmoothingTimeMs, 
-  				 smootherCallback);
+  smoother.reset(this,
+  				       kSmoothingTimeMs);
 
   mMakeGraphicsFunc = [&]() {
     return MakeGraphics(*this, PLUG_WIDTH, PLUG_HEIGHT, PLUG_FPS, GetScaleForScreen(PLUG_WIDTH, PLUG_HEIGHT));
@@ -98,16 +71,14 @@ NAMpanion::NAMpanion(const InstanceInfo& info): iplug::Plugin(info, MakeConfig(k
 
     pGraphics->EnableMouseOver(true);
 
-    pGraphics->AttachCornerResizer(new CornerResizer(IRECT(0, 0, PLUG_WIDTH, PLUG_HEIGHT),
-                                                     24.0,
-                                                     COLOR_GRAY.WithOpacity(0.25),
-                                                     COLOR_GRAY.WithOpacity(0.75),
-                                                     COLOR_GRAY.WithOpacity(0.50)));
-
-    pGraphics->AttachControl(new CornerShrinker(24.0,
-                                                COLOR_GRAY.WithOpacity(0.25),
-                                                COLOR_GRAY.WithOpacity(0.75)));
-
+    pGraphics->AttachCornerResizer(new NAMCornerResizer(IRECT(0, 0, PLUG_WIDTH, PLUG_HEIGHT),
+                                                        24.0,
+                                                        NAM_1,
+                                                        NAM_3.WithOpacity(0.75),
+                                                        NAM_2));
+    pGraphics->AttachControl(new NAMCornerShrinker(24.0,
+                                                   NAM_1,
+                                                   NAM_3.WithOpacity(0.75)));
 
     pGraphics->AttachPanelBackground(COLOR_BLACK);
     pGraphics->LoadFont("Roboto-Regular", ROBOTO_FN);
@@ -164,14 +135,10 @@ void NAMpanion::OnReset() {
   //
   SetTailSize((int)(sr + 0.5));
 
-  // Reset parameter smoothers: ///////////////////////////////////////////////
-  
   smoother.reset(this,
-                 kNumParams, 
-                 kSmoothingTimeMs, 
-                 smootherCallback);
+                 kSmoothingTimeMs);
 
-  updateStages(sr, true);
+  updateStages(true);
 
 }
 
@@ -181,101 +148,56 @@ void NAMpanion::OnParamChange(int paramIdx) {
   if ((paramIdx == kParamActive) && GetUI()) {
     updateKnobs();
   }
-
 }
 
 void NAMpanion::ProcessBlock(sample** inputs, sample** outputs, int nFrames) {
 
-  const double sr = GetSampleRate();
-
+  // const double  sr        = GetSampleRate();
   const int     nInChans  = NInChansConnected();
   const int     nOutChans = NOutChansConnected();
   const int     nMaxChans = std::max(nInChans, nOutChans);
 
   for (int s = 0; s < nFrames; s++) {
-  	
-  	updateStages(sr, false);
 
-    //comment out:
-    //// Get smoothed values from smoothing filters:
-    //double  drive_Real  = DBToAmp(m_ParamSmoother[kParamDrive ].filter(m_ParamValues[kParamDrive ]));
-    //double  low         =         m_ParamSmoother[kParamLow   ].filter(m_ParamValues[kParamLow   ]);
-    //double  mid         =         m_ParamSmoother[kParamMid   ].filter(m_ParamValues[kParamMid   ]);
-    //double  high        =         m_ParamSmoother[kParamHigh  ].filter(m_ParamValues[kParamHigh  ]);
-    //double  output_Real = DBToAmp(m_ParamSmoother[kParamOutput].filter(m_ParamValues[kParamOutput]));
-    //double  active      =         m_ParamSmoother[kParamActive].filter(m_ParamValues[kParamActive]);
+  	updateStages(false);
 
     for (int ch = 0; ch < nMaxChans; ch++) {
 
       if ((nOutChans > nInChans) && (ch == 1)) { // The second output channel in the "1-2" situation
         outputs[1][s] = outputs[0][s]; // Simply copy
+
       } else {
 
-        if (m_Active == 1.0) {
-
-          // Not bypassed: //////////////////////////////////////////////////////
-
-          outputs[ch][s] =
-
-            m_Output_Real *
-
-              /*dcBlock[ch].processAudioSample(
-
-                highCut[ch].processAudioSample(
-                  lowShelf[ch].processAudioSample(
-
-                    midAfter[ch].processAudioSample(
-
-                      waveshaper[ch].processAudioSample(
-              */
-                        m_Drive_Real *
-
-                          /*midBefore[ch].processAudioSample(
-
-                            highShelf[ch].processAudioSample(
-                              lowCut[ch].processAudioSample(*/
-
-                                inputs[ch][s];
-
-        } else if (m_Active == 0.0) {
-
-          // Bypassed: //////////////////////////////////////////////////////////
-
+        if (m_Active == 0.0) {
+          // Bypassed:
           outputs[ch][s] = inputs[ch][s];
 
         } else {
 
-          NOP;
-
-          // Transition: ////////////////////////////////////////////////////////
-
           outputs[ch][s] =
+            m_Output_Real *
+              -dcBlock[ch].filter(  // Minus, because this filter erroneously inverts polarity.
+                                    // I reported this bug, but the developer denied there was a problem.
+                highCut[ch].filter(
+                  lowShelf[ch].filter(
+                    midAfter[ch].filter(
+                      waveshaper[ch].processAudioSample(
+                        m_Drive_Real *
+                          midBefore[ch].filter(
+                            highShelf[ch].filter(
+                              -lowCut[ch].filter( // Minus, because this filter erroneously inverts polarity.
+                                                  // I reported this bug, but the developer denied there was a problem.
+                                inputs[ch][s]))))))));
 
-            ((1.0 - m_Active) *
-              inputs[ch][s])
+          if (m_Active != 1.0) {
+            // Transition: ////////////////////////////////////////////////////////
 
-            + (m_Active *
+            outputs[ch][s] =
 
-              m_Output_Real *
+              ((1.0 - m_Active) * inputs [ch][s]) +
+              ((m_Active)       * outputs[ch][s]);
 
-                //dcBlock[ch].processAudioSample(
-
-                //  highCut[ch].processAudioSample(
-                //    lowShelf[ch].processAudioSample(
-
-                //      midAfter[ch].processAudioSample(
-
-                //        waveshaper[ch].processAudioSample(
-
-                          m_Drive_Real *
-
-                            /*midBefore[ch].processAudioSample(
-
-                              highShelf[ch].processAudioSample(
-                                lowCut[ch].processAudioSample(*/
-
-                                  inputs[ch][s]);
-        
+          }
         }
 
       }
@@ -302,30 +224,34 @@ void NAMpanion::updateKnobs() {
   }
 }
 
-inline void NAMpanion::updateStages(double _sampleRate, bool _resetting) {
+inline void NAMpanion::AdjustMid(int ch) {
 
+  const double  sr            = GetSampleRate();
+  const double  midFreq       = getMidFreq     (m_LowPos, m_HighPos);
+  const double  midBandwidth  = getMidBandwidth(m_Mid_dB);
+
+  if (m_Mid_dB > 0.0) {
+    // Only the pre-drive mid is active:
+    midBefore[ch].setup(sr, midFreq, m_Mid_dB, midBandwidth);
+    midAfter [ch].setup(sr, midFreq, 0.0,      midBandwidth);
+  } else {
+    midBefore[ch].setup(sr, midFreq, 0.0,      midBandwidth);
+    midAfter [ch].setup(sr, midFreq, m_Mid_dB, midBandwidth);
+  }
+}
+
+inline void NAMpanion::updateStages(bool _resetting) {
+
+  const double sr = GetSampleRate();
+
+  // Non-parameter-related stages:
   if (_resetting) {
     for (int ch = 0; ch < kMaxNumChannels; ch++) {
-
-      /*lowCut[ch].setup(_sampleRate, lowCutFreq);
-
-        lowShelf[ch].reset(
-
-          midBefore[ch].reset(
-            midAfter[ch].reset(
-
-              waveshaper[ch].reset(
-                dcBlock[ch].reset(
-
-                  highCut[ch].reset(
-                    highShelf[ch].reset(*_sampleRate))))))));*/
-
-      dcBlock[ch].setup(_sampleRate, kDCBlockFreq);
-
+      dcBlock[ch].setup(sr, kDCBlockFreq);
     }
   }
 
-
+  // Parameter-related stages:
   for (int p = 0; p < kNumParams; p++) {
 
     switch (p) {
@@ -334,12 +260,11 @@ inline void NAMpanion::updateStages(double _sampleRate, bool _resetting) {
         double v;
         if (smoother.get(p, v) || _resetting) {
 
-          m_Drive_dB    = v;
-          m_Drive_Real  = DBToAmp(m_Drive_dB);
+          m_Drive_Real = DBToAmp(v);
 
           for (int ch = 0; ch < kMaxNumChannels; ch++) {
-            /*waveshaper[ch].setA((m_Drive_dB             - paramValues[p].minimum) /
-                                (paramValues[p].maximum - paramValues[p].minimum));*/
+            waveshaper[ch].setA((v                      - paramValues[p].minimum) /
+                                (paramValues[p].maximum - paramValues[p].minimum));
           }
         }
         break;
@@ -351,10 +276,7 @@ inline void NAMpanion::updateStages(double _sampleRate, bool _resetting) {
 
           m_LowPos = v;  // Knob setting
 
-          double midFreq        = getMidFreq (m_LowPos, m_HighPos);
           double lowShelfBoost  = getLowBoost(m_LowPos);
-          double midQ           = getMidQ(m_Mid_dB);
-
 
           double lowCutFreq;
           double lowShelfFreq;
@@ -368,20 +290,10 @@ inline void NAMpanion::updateStages(double _sampleRate, bool _resetting) {
           }
 
           for (int ch = 0; ch < kMaxNumChannels; ch++) {
-            lowCut   [ch].setup(_sampleRate, lowCutFreq);
-            lowShelf [ch].setup(_sampleRate, lowShelfFreq, lowShelfBoost);
+            lowCut   [ch].setup(sr, lowCutFreq);
+            lowShelf [ch].setup(sr, lowShelfFreq, lowShelfBoost, kLowBoostSlope);
 
-
-            if (m_Mid_dB > 0.0) {
-              // Only the pre-drive mid is active:
-              midBefore[ch].setup(_sampleRate, midFreq, m_Mid_dB, 1.0 / midQ);
-              midAfter [ch].setup(_sampleRate, midFreq, 0.0,      1.0 / midQ);
-            } else {
-              midBefore[ch].setup(_sampleRate, midFreq, 0.0,      1.0 / midQ);
-              midAfter [ch].setup(_sampleRate, midFreq, m_Mid_dB, 1.0 / midQ);
-
-            }
-
+            AdjustMid(ch);
           }
         }
         break;
@@ -393,22 +305,8 @@ inline void NAMpanion::updateStages(double _sampleRate, bool _resetting) {
 
           m_Mid_dB = v;  // Knob setting == Value in dB
 
-          double midFreq  = getMidFreq (m_LowPos, m_HighPos);
-          double midQ     = getMidQ(m_Mid_dB);
-
           for (int ch = 0; ch < kMaxNumChannels; ch++) {
-
-
-            if (m_Mid_dB > 0.0) {
-              // Only the pre-drive mid is active:
-              midBefore[ch].setup(_sampleRate, midFreq, m_Mid_dB, 1.0 / midQ);
-              midAfter [ch].setup(_sampleRate, midFreq, 0.0,      1.0 / midQ);
-            } else {
-              midBefore[ch].setup(_sampleRate, midFreq, 0.0,      1.0 / midQ);
-              midAfter [ch].setup(_sampleRate, midFreq, m_Mid_dB, 1.0 / midQ);
-
-            }
-
+            AdjustMid(ch);
           }
         }
         break;
@@ -420,9 +318,7 @@ inline void NAMpanion::updateStages(double _sampleRate, bool _resetting) {
 
           m_HighPos = v;  // Knob setting
 
-          double midFreq        = getMidFreq(m_LowPos, m_HighPos);
-          double highShelfBoost = getHighBoost        (m_HighPos);
-          double midQ           = getMidQ(m_Mid_dB);
+          double highShelfBoost = getHighBoost   (m_HighPos);
 
           double highCutFreq;
           double highShelfFreq;
@@ -436,19 +332,10 @@ inline void NAMpanion::updateStages(double _sampleRate, bool _resetting) {
           }
 
           for (int ch = 0; ch < kMaxNumChannels; ch++) {
-            highCut  [ch].setup(_sampleRate, highCutFreq);
-            highShelf[ch].setup(_sampleRate, highShelfFreq, highShelfBoost);
+            highCut  [ch].setup(sr, highCutFreq);
+            highShelf[ch].setup(sr, highShelfFreq, highShelfBoost, kHighBoostSlope);
 
-            if (m_Mid_dB > 0.0) {
-              // Only the pre-drive mid is active:
-              midBefore[ch].setup(_sampleRate, midFreq, m_Mid_dB, 1.0 / midQ);
-              midAfter [ch].setup(_sampleRate, midFreq, 0.0,      1.0 / midQ);
-            } else {
-              midBefore[ch].setup(_sampleRate, midFreq, 0.0,      1.0 / midQ);
-              midAfter [ch].setup(_sampleRate, midFreq, m_Mid_dB, 1.0 / midQ);
-
-            }
-
+            AdjustMid(ch);
           }
         }
         break;
@@ -457,10 +344,7 @@ inline void NAMpanion::updateStages(double _sampleRate, bool _resetting) {
       case kParamOutput: {
         double v;
         if (smoother.get(p, v) || _resetting) {
-
-          m_Output_dB    = v;
-          m_Output_Real  = DBToAmp(v);
-
+          m_Output_Real = DBToAmp(v);
         }
         break;
       }
