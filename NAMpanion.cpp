@@ -24,7 +24,9 @@ NAMpanion::NAMpanion(const InstanceInfo& info): iplug::Plugin(info, MakeConfig(k
       // dBs:
       case kParamDrive:
       case kParamMid:
-      case kParamOutput: {
+      case kParamOutput:
+      case kParamLowMaxBoost:
+      case kParamHighMaxBoost: {
         GetParam(p)->InitGain(paramNames [p],
                               paramValues[p].default,
                               paramValues[p].minimum,
@@ -45,14 +47,34 @@ NAMpanion::NAMpanion(const InstanceInfo& info): iplug::Plugin(info, MakeConfig(k
       }
 
       // Boolean:
-      case kParamActive: {
+      case kParamActive:
+      case kParamOversampling: {
         GetParam(p)->InitBool(paramNames [p],
                               paramValues[p].default);
         break;
       }
 
+      // Frequency:
+      case kParamLowFreqMin:
+      case kParamHighFreqMax: {
+        /*
+        GetParam(p)->InitFrequency(paramNames [p],
+                                   paramValues[p].default,
+                                   paramValues[p].minimum,
+                                   paramValues[p].maximum,
+                                   paramValues[p].step);
+        */
+        GetParam(p)->InitDouble(paramNames [p],         // InitDouble, to get rid of units showing
+                                paramValues[p].default,
+                                paramValues[p].minimum,
+                                paramValues[p].maximum,
+                                paramValues[p].step,
+                                "", 0, "", IParam::ShapeExp(), IParam::kUnitCustom);
+        break;
+      }
+
       default: {
-        FAIL('Parameter missing');
+        FAIL("Parameter missing");
         break;
       }
 
@@ -103,19 +125,67 @@ NAMpanion::NAMpanion(const InstanceInfo& info): iplug::Plugin(info, MakeConfig(k
                                                                                           NAM_3})));
 
     for (int p = 0; p < kNumParams; p++) {
-      if (p == kParamActive) {
-        pGraphics->AttachControl(new IVToggleControl(controlCoordinates[p],
-                                                     p,
-                                                     paramNames[p],
-                                                     style.WithShowLabel(false),
-                                                     "off",
-                                                     "on"));
-        m_Controls[p] = 0;
-      } else {
-        m_Controls[p] = pGraphics->AttachControl(new IVKnobControl(controlCoordinates[p],
-                                                                   p,
-                                                                   paramNames[p],
-                                                                   style));
+
+      switch(p) {
+
+        case kParamDrive:
+        case kParamLow:
+        case kParamMid:
+        case kParamHigh:
+        case kParamOutput: {
+          // Big knobs:
+          m_Controls[p] = pGraphics->AttachControl(new IVKnobControl(controlCoordinates[p],
+                                                                     p,
+                                                                     paramLabels[p],
+                                                                     style));
+          break;
+        }
+
+        case kParamActive: {
+          // On/Off switch:
+          pGraphics->AttachControl(new IVToggleControl(controlCoordinates[p],
+                                                       p,
+                                                       paramLabels[p],
+                                                       style.WithShowLabel(false),
+                                                       "off",
+                                                       "on"));
+          // Not to be disabled:
+          m_Controls[p] = 0;
+          break;
+        }
+
+        case kParamOversampling: {
+          m_Controls[p] = pGraphics->AttachControl(new IVToggleControl(controlCoordinates[p],
+                                                                       p,
+                                                                       paramLabels[p],
+                                                                       style.WithShowLabel(false),
+                                                                       "1x",
+                                                                       "16x"));
+          break;
+        }
+
+        case kParamLowFreqMin:
+        case kParamHighFreqMax:
+        case kParamLowMaxBoost:
+        case kParamHighMaxBoost: {
+          // Little tweak knoblets:
+          m_Controls[p] = pGraphics->AttachControl(new IVKnobControl(controlCoordinates[p],
+                                                                     p,
+                                                                     paramLabels[p],
+                                                                     style.WithShowValue(true)
+                                                                          .WithLabelText(IText(10,
+                                                                                               EVAlign::Top,
+                                                                                               NAM_3))
+                                                                          .WithValueText(IText(10,
+                                                                                               EVAlign::Bottom,
+                                                                                               NAM_3))));
+          break;
+        }
+
+        default: {
+          FAIL("Parameter missing");
+          break;
+        }
       }
     }
 
@@ -169,7 +239,9 @@ void NAMpanion::ProcessBlock(sample** inputs, sample** outputs, int nFrames) {
       } else {
 
         if (m_Active == 0.0) {
-          // Bypassed:
+
+          // Bypassed: ////////////////////////////////////////////////////////
+
           outputs[ch][s] = inputs[ch][s];
 
         } else {
@@ -181,31 +253,30 @@ void NAMpanion::ProcessBlock(sample** inputs, sample** outputs, int nFrames) {
                 highCut[ch].filter(
                   lowShelf[ch].filter(
                     midAfter[ch].filter(
-                      waveshaper[ch].processAudioSample(
+                      oversampler[ch].Process(
                         m_Drive_Real *
                           midBefore[ch].filter(
                             highShelf[ch].filter(
                               -lowCut[ch].filter( // Minus, because this filter erroneously inverts polarity.
                                                   // I reported this bug, but the developer denied there was a problem.
-                                inputs[ch][s]))))))));
+                                inputs[ch][s]))),
+                        [&](sample input) {
+                          return waveshaper[ch].processAudioSample(input);
+                        })))));
 
           if (m_Active != 1.0) {
-            // Transition: ////////////////////////////////////////////////////////
+
+            // Transition: ////////////////////////////////////////////////////
 
             outputs[ch][s] =
-
               ((1.0 - m_Active) * inputs [ch][s]) +
               ((m_Active)       * outputs[ch][s]);
 
           }
         }
-
       }
-
     }
   }
-
-
 }
 
 void NAMpanion::updateKnobs() {
@@ -224,20 +295,80 @@ void NAMpanion::updateKnobs() {
   }
 }
 
-inline void NAMpanion::AdjustMid(int ch) {
+inline void NAMpanion::AdjustLow() {
+
+  const double  sr             = GetSampleRate();
+  const double  lowShelfBoost  = getLowShelfBoost();
+  double        lowCutFreq;
+  double        lowShelfFreq;
+
+  if (m_LowPos < 0.0) {
+    lowCutFreq   = getLowFreq();
+    lowShelfFreq = m_LowFreqMin;
+  } else {
+    lowCutFreq   = m_LowFreqMin;
+    lowShelfFreq = getLowFreq();
+  }
+
+  for (int ch = 0; ch < kMaxNumChannels; ch++) {
+    lowCut   [ch].setup(sr, lowCutFreq);
+    lowShelf [ch].setup(sr, lowShelfFreq, lowShelfBoost, kLowBoostSlope);
+  }
+
+}
+
+inline void NAMpanion::AdjustMid() {
 
   const double  sr            = GetSampleRate();
-  const double  midFreq       = getMidFreq     (m_LowPos, m_HighPos);
-  const double  midBandwidth  = getMidBandwidth(m_Mid_dB);
+  const double  midFreq       = getMidFreq();
+  const double  midBandwidth  = getMidBandwidth();
 
-  if (m_Mid_dB > 0.0) {
-    // Only the pre-drive mid is active:
-    midBefore[ch].setup(sr, midFreq, m_Mid_dB, midBandwidth);
-    midAfter [ch].setup(sr, midFreq, 0.0,      midBandwidth);
-  } else {
-    midBefore[ch].setup(sr, midFreq, 0.0,      midBandwidth);
-    midAfter [ch].setup(sr, midFreq, m_Mid_dB, midBandwidth);
+  for (int ch = 0; ch < kMaxNumChannels; ch++) {
+    if (m_Mid_dB > 0.0) {
+      // Only the pre-drive mid is active:
+      midBefore[ch].setup(sr, midFreq, m_Mid_dB, midBandwidth);
+      midAfter [ch].setup(sr, midFreq, 0.0,      midBandwidth);
+    } else {
+      // Only the post-drive mid is active:
+      midBefore[ch].setup(sr, midFreq, 0.0,      midBandwidth);
+      midAfter [ch].setup(sr, midFreq, m_Mid_dB, midBandwidth);
+    }
   }
+}
+
+inline void NAMpanion::AdjustHigh() {
+
+  const double  sr             = GetSampleRate();
+  const double  highShelfBoost = getHighShelfBoost();
+  double        highCutFreq;
+  double        highShelfFreq;
+
+  if (m_HighPos < 0.0) {
+    highCutFreq   = getHighFreq();
+    highShelfFreq = m_HighFreqMax;
+  } else {
+    highCutFreq   = m_HighFreqMax;
+    highShelfFreq = getHighFreq();
+  }
+
+  for (int ch = 0; ch < kMaxNumChannels; ch++) {
+    highCut  [ch].setup(sr, highCutFreq);
+    highShelf[ch].setup(sr, highShelfFreq, highShelfBoost, kHighBoostSlope);
+  }
+}
+
+inline void NAMpanion::AdjustOversampling() {
+
+  for (int ch = 0; ch < kMaxNumChannels; ch++) {
+    if ((m_Oversampling >= 0.5) &&
+        (OverSampler<sample>::RateToFactor(oversampler[ch].GetRate()) != EFactor::k16x)) {
+      oversampler[ch].SetOverSampling(EFactor::k16x);
+    } else if ((m_Oversampling < 0.5) &&
+        (OverSampler<sample>::RateToFactor(oversampler[ch].GetRate()) != EFactor::kNone)) {
+      oversampler[ch].SetOverSampling(EFactor::kNone);
+    }
+  }
+
 }
 
 inline void NAMpanion::updateStages(bool _resetting) {
@@ -247,7 +378,12 @@ inline void NAMpanion::updateStages(bool _resetting) {
   // Non-parameter-related stages:
   if (_resetting) {
     for (int ch = 0; ch < kMaxNumChannels; ch++) {
+
+      AdjustOversampling();
+      oversampler[ch].Reset(GetBlockSize());
+
       dcBlock[ch].setup(sr, kDCBlockFreq);
+
     }
   }
 
@@ -259,13 +395,13 @@ inline void NAMpanion::updateStages(bool _resetting) {
       case kParamDrive: {
         double v;
         if (smoother.get(p, v) || _resetting) {
-
           m_Drive_Real = DBToAmp(v);
 
           for (int ch = 0; ch < kMaxNumChannels; ch++) {
             waveshaper[ch].setA((v                      - paramValues[p].minimum) /
                                 (paramValues[p].maximum - paramValues[p].minimum));
           }
+
         }
         break;
       }
@@ -273,28 +409,10 @@ inline void NAMpanion::updateStages(bool _resetting) {
       case kParamLow: {
         double v;
         if (smoother.get(p, v) || _resetting) {
-
           m_LowPos = v;  // Knob setting
 
-          double lowShelfBoost  = getLowBoost(m_LowPos);
-
-          double lowCutFreq;
-          double lowShelfFreq;
-
-          if (m_LowPos < 0.0) {
-            lowCutFreq   = getLowFreq(m_LowPos);
-            lowShelfFreq = kLowFreqMin;
-          } else {
-            lowCutFreq   = kLowFreqMin;
-            lowShelfFreq = getLowFreq(m_LowPos);
-          }
-
-          for (int ch = 0; ch < kMaxNumChannels; ch++) {
-            lowCut   [ch].setup(sr, lowCutFreq);
-            lowShelf [ch].setup(sr, lowShelfFreq, lowShelfBoost, kLowBoostSlope);
-
-            AdjustMid(ch);
-          }
+          AdjustLow();
+          AdjustMid();
         }
         break;
       }
@@ -302,12 +420,9 @@ inline void NAMpanion::updateStages(bool _resetting) {
       case kParamMid: {
         double v;
         if (smoother.get(p, v) || _resetting) {
-
           m_Mid_dB = v;  // Knob setting == Value in dB
 
-          for (int ch = 0; ch < kMaxNumChannels; ch++) {
-            AdjustMid(ch);
-          }
+          AdjustMid();
         }
         break;
       }
@@ -315,28 +430,11 @@ inline void NAMpanion::updateStages(bool _resetting) {
       case kParamHigh: {
         double v;
         if (smoother.get(p, v) || _resetting) {
-
           m_HighPos = v;  // Knob setting
 
-          double highShelfBoost = getHighBoost   (m_HighPos);
+          AdjustMid();
+          AdjustHigh();
 
-          double highCutFreq;
-          double highShelfFreq;
-
-          if (m_HighPos < 0.0) {
-            highCutFreq   = getHighFreq(m_HighPos);
-            highShelfFreq = kHighFreqMax;
-          } else {
-            highCutFreq   = kHighFreqMax;
-            highShelfFreq = getHighFreq(m_HighPos);
-          }
-
-          for (int ch = 0; ch < kMaxNumChannels; ch++) {
-            highCut  [ch].setup(sr, highCutFreq);
-            highShelf[ch].setup(sr, highShelfFreq, highShelfBoost, kHighBoostSlope);
-
-            AdjustMid(ch);
-          }
         }
         break;
       }
@@ -357,8 +455,62 @@ inline void NAMpanion::updateStages(bool _resetting) {
         break;
       }
 
+      case kParamOversampling: {
+        double v;
+        if (smoother.get(p, v) || _resetting) {
+          m_Oversampling = v;
+          AdjustOversampling();
+        }
+        break;
+      }                       
+
+      // Tweaking knoblets:
+      case kParamLowFreqMin: {
+        double v;
+        if (smoother.get(p, v) || _resetting) {
+          m_LowFreqMin = v;
+
+          AdjustLow ();
+          AdjustMid ();
+          AdjustHigh();
+        }
+        break;
+      }
+
+      case kParamHighFreqMax: {
+        double v;
+        if (smoother.get(p, v) || _resetting) {
+          m_HighFreqMax = v;
+
+          AdjustLow ();
+          AdjustMid ();
+          AdjustHigh();
+        }
+        break;
+      }
+
+      case kParamLowMaxBoost: {
+        double v;
+        if (smoother.get(p, v) || _resetting) {
+          m_LowMaxBoost = v;
+
+          AdjustLow();
+        }
+        break;
+      }
+
+      case kParamHighMaxBoost: {
+        double v;
+        if (smoother.get(p, v) || _resetting) {
+          m_HighMaxBoost = v;
+
+          AdjustHigh();
+        }
+        break;
+      }
+
       default: {
-        FAIL(Wrong number of parameters);
+        FAIL("Parameter missing");
         break;
       }
 
