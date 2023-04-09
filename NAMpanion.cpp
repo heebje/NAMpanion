@@ -82,8 +82,7 @@ NAMpanion::NAMpanion(const InstanceInfo& info): iplug::Plugin(info, MakeConfig(k
 
   }
 
-  smoother.reset(this,
-  				       kSmoothingTimeMs);
+  smoother.reset(this, kSmoothingTimeMs);
 
   mMakeGraphicsFunc = [&]() {
     return MakeGraphics(*this, PLUG_WIDTH, PLUG_HEIGHT, PLUG_FPS, GetScaleForScreen(PLUG_WIDTH, PLUG_HEIGHT));
@@ -229,7 +228,7 @@ void NAMpanion::ProcessBlock(sample** inputs, sample** outputs, int nFrames) {
 
   for (int s = 0; s < nFrames; s++) {
 
-  	updateStages(false);
+    updateStages(false);
 
     for (int ch = 0; ch < nMaxChans; ch++) {
 
@@ -462,7 +461,7 @@ inline void NAMpanion::updateStages(bool _resetting) {
           AdjustOversampling();
         }
         break;
-      }                       
+      }
 
       // Tweaking knoblets:
       case kParamLowFreqMin: {
