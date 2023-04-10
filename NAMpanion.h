@@ -87,11 +87,31 @@ char* paramToolTips[kNumParams] = {
   "High Max Boost:\nSets the maximum boost level of the high shelving filter (before the drive section)",
 };
 
-struct VALUES {
-  double default, minimum, maximum, step;
-  VALUES(double def, double min, double max, double stp): default(def), minimum(min), maximum(max), step(stp) {};
-  VALUES(boolean def): default(def), minimum(false), maximum(true), step(1.0) {};
+class VALUES {
+public:
+  VALUES(double _def, double _min, double _max, double _step) {
+    def   = _def;
+    min   = _min;
+    max   = _max;
+    step  = _step;
+  };
+  VALUES(bool _def) {
+    def   = _def;
+    min   = false;
+    max   = true;
+    step  = 1.0;
+  };
+  double def;
+  double min;
+  double max;
+  double step;
 };
+
+//struct VALUES {
+//  double def, min, max, step;
+//  VALUES(double def, double min, double max, double step): def(def), min(min), max(max), step(step) {};
+//  VALUES(boolean def): def(def), min(false), max(true), step(1.0) {};
+//};
 
 VALUES paramValues[kNumParams] = {  // (default, minimum, maximum, step)
 
@@ -130,8 +150,8 @@ IRECT controlCoordinates[kNumParams] = {
   IRECT(PLUG_WIDTH-45-30-1*35, 35, PLUG_WIDTH-45-1*35, 35+40),  // High Max Boost
 };
 
-const double  kFreqCentre       = sqrt(paramValues[kParamLowFreqMin ].minimum
-                                     * paramValues[kParamHighFreqMax].maximum);
+const double  kFreqCentre       = sqrt(paramValues[kParamLowFreqMin ].min
+                                     * paramValues[kParamHighFreqMax].max);
 
 const double  kLowBoostSlope    =  1.0;
 const double  kHighBoostSlope   =  1.0;
@@ -143,19 +163,19 @@ private:
   // Smoothed parameter values ////////////////////////////////////////////////
 
   // Main knobs:
-  double  m_Drive_Real    = DBToAmp(paramValues[kParamDrive       ].default); // Input gain in real terms, from dB
-  double  m_LowPos        =         paramValues[kParamLow         ].default;  // Position of Low knob, -10..+10
-  double  m_Mid_dB        =         paramValues[kParamMid         ].default;  // Mid cut/boost in dB
-  double  m_HighPos       =         paramValues[kParamHigh        ].default;  // Position of High knob, -10..+10
-  double  m_Output_Real   = DBToAmp(paramValues[kParamOutput      ].default); // Output gain in real terms, from dB
-  double  m_Active        =         paramValues[kParamActive      ].default;  // 0.0..1.0
-  double  m_Oversampling  =         paramValues[kParamOversampling].default;  // 0.0..1.0
+  double  m_Drive_Real    = DBToAmp(paramValues[kParamDrive       ].def); // Input gain in real terms, from dB
+  double  m_LowPos        =         paramValues[kParamLow         ].def;  // Position of Low knob, -10..+10
+  double  m_Mid_dB        =         paramValues[kParamMid         ].def;  // Mid cut/boost in dB
+  double  m_HighPos       =         paramValues[kParamHigh        ].def;  // Position of High knob, -10..+10
+  double  m_Output_Real   = DBToAmp(paramValues[kParamOutput      ].def); // Output gain in real terms, from dB
+  double  m_Active        =         paramValues[kParamActive      ].def;  // 0.0..1.0
+  double  m_Oversampling  =         paramValues[kParamOversampling].def;  // 0.0..1.0
 
     // Little tweak knoblets:
-  double  m_LowFreqMin    =         paramValues[kParamLowFreqMin  ].default;  // Lowest  frequency for low  filters
-  double  m_HighFreqMax   =         paramValues[kParamHighFreqMax ].default;  // Highest frequency for high filters
-  double  m_LowMaxBoost   =         paramValues[kParamLowMaxBoost ].default;  // Maximum boost of low  shelving filter
-  double  m_HighMaxBoost  =         paramValues[kParamHighMaxBoost].default;  // Maximum boost of high shelving filter
+  double  m_LowFreqMin    =         paramValues[kParamLowFreqMin  ].def;  // Lowest  frequency for low  filters
+  double  m_HighFreqMax   =         paramValues[kParamHighFreqMax ].def;  // Highest frequency for high filters
+  double  m_LowMaxBoost   =         paramValues[kParamLowMaxBoost ].def;  // Maximum boost of low  shelving filter
+  double  m_HighMaxBoost  =         paramValues[kParamHighMaxBoost].def;  // Maximum boost of high shelving filter
 
   // Methods to calculate filter frequencies etc, based on current smoothed parameter values:
 
@@ -169,7 +189,7 @@ private:
   double inline getLowFreq() {  // Currently active low frequency, which determins either
                                 // the low cut filter's or the low shelf filter's frequency,
                                 // depending on low knob position.
-    return m_LowFreqMin * pow(getEQCentre() / m_LowFreqMin, abs(m_LowPos / paramValues[kParamLow].maximum));
+    return m_LowFreqMin * pow(getEQCentre() / m_LowFreqMin, abs(m_LowPos / paramValues[kParamLow].max));
   }
 
   double inline getMidFreq() {  // Currently active mid frequency, which is the midpoint between the currently
@@ -220,7 +240,7 @@ private:
   double inline getHighFreq() { // Currently active high frequency, which determins either
                                 // the high cut filter's or the high shelf filter's frequency,
                                 // depending on high knob position.
-    return m_HighFreqMax / pow(m_HighFreqMax / getEQCentre(), abs(m_HighPos / paramValues[kParamHigh].maximum));
+    return m_HighFreqMax / pow(m_HighFreqMax / getEQCentre(), abs(m_HighPos / paramValues[kParamHigh].max));
   }
 
   double inline getLowShelfBoost() {  // Boost value for the low shelf filter, depending on low knob position
@@ -232,7 +252,7 @@ private:
   }
 
   double inline getMidBandwidth() { // Boost-/cut-dependent bandwidth for mid peaking filter
-    return pow(4.0/3.0, (m_Mid_dB + 27.0) / paramValues[kParamMid].maximum);
+    return pow(4.0/3.0, (m_Mid_dB + 27.0) / paramValues[kParamMid].max);
   }
 
   // Knobs (for enabling / disabling):

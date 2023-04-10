@@ -28,9 +28,9 @@ NAMpanion::NAMpanion(const InstanceInfo& info): iplug::Plugin(info, MakeConfig(k
       case kParamLowMaxBoost:
       case kParamHighMaxBoost: {
         GetParam(p)->InitGain(paramNames [p],
-                              paramValues[p].default,
-                              paramValues[p].minimum,
-                              paramValues[p].maximum,
+                              paramValues[p].def,
+                              paramValues[p].min,
+                              paramValues[p].max,
                               paramValues[p].step);
         break;
       }
@@ -39,9 +39,9 @@ NAMpanion::NAMpanion(const InstanceInfo& info): iplug::Plugin(info, MakeConfig(k
       case kParamLow:
       case kParamHigh: {
         GetParam(p)->InitDouble(paramNames [p],
-                                paramValues[p].default,
-                                paramValues[p].minimum,
-                                paramValues[p].maximum,
+                                paramValues[p].def,
+                                paramValues[p].min,
+                                paramValues[p].max,
                                 paramValues[p].step);
         break;
       }
@@ -50,7 +50,7 @@ NAMpanion::NAMpanion(const InstanceInfo& info): iplug::Plugin(info, MakeConfig(k
       case kParamActive:
       case kParamOversampling: {
         GetParam(p)->InitBool(paramNames [p],
-                              paramValues[p].default);
+                              paramValues[p].def);
         break;
       }
 
@@ -58,9 +58,9 @@ NAMpanion::NAMpanion(const InstanceInfo& info): iplug::Plugin(info, MakeConfig(k
       case kParamLowFreqMin:
       case kParamHighFreqMax: {
         GetParam(p)->InitDouble(paramNames [p],         // InitDouble, to get rid of units showing
-                                paramValues[p].default,
-                                paramValues[p].minimum,
-                                paramValues[p].maximum,
+                                paramValues[p].def,
+                                paramValues[p].min,
+                                paramValues[p].max,
                                 paramValues[p].step,
                                 "", 0, "", IParam::ShapeExp(), IParam::kUnitCustom);
         break;
@@ -188,18 +188,20 @@ NAMpanion::NAMpanion(const InstanceInfo& info): iplug::Plugin(info, MakeConfig(k
         }
       }
 
+      pGraphics->AttachControl(new IPanelControl(IRECT(45,240,PLUG_WIDTH-45,400),
+                                                 IPattern(NAM_2.WithContrast(-0.75))
+                                                ));
+
       m_Plot = pGraphics->AttachControl(new IVPlotControl(IRECT(45,240,PLUG_WIDTH-45,400),
                                                           {
-                                                            { NAM_2.WithContrast(-0.33),
+                                                            { NAM_2,
                                                               [&](double x) -> double {
-                                                                /*const double ln1000 = log(1000.0);
-                                                                const double sr     = GetSampleRate();*/
-                                                                return m_PlotValues[int(x * PLUG_WIDTH)];
-                                                                // return log(abs(lowCut[0].response(20*exp(ln1000 * x)/sr)));
+                                                                return m_PlotValues[int(x * (PLUG_WIDTH-1))];
                                                               }
                                                             }
                                                           },
                                                           pGraphics->Width()));
+      m_Plot->SetBlend(IBlend(EBlend::Default, 0.75));
 
     }
 
@@ -261,7 +263,7 @@ void NAMpanion::OnIdle() {
       NOP;
 
       for (int s = 0; s < PLUG_WIDTH; s++) {
-        double f = 20.0 * exp(ln1000 * s / PLUG_WIDTH) / sr;
+        double f = 20.0 * exp(ln1000 * s / (PLUG_WIDTH)) / sr;
         m_PlotValues[s] = std::log(abs(m_LowCut   [kPlotChannel].response(f))
                                  * abs(m_LowShelf [kPlotChannel].response(f))
 
@@ -454,8 +456,8 @@ inline void NAMpanion::updateStages(bool _resetting) {
           m_Drive_Real = DBToAmp(v);
 
           for (int ch = 0; ch < kMaxNumChannels; ch++) {
-            m_Waveshaper[ch].setA((v                      - paramValues[p].minimum) /
-                                  (paramValues[p].maximum - paramValues[p].minimum));
+            m_Waveshaper[ch].setA((v                  - paramValues[p].min) /
+                                  (paramValues[p].max - paramValues[p].min));
           }
 
         }

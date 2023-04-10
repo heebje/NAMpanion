@@ -5,16 +5,16 @@
 #define PLUG_UNIQUE_ID            654002602
 #define PLUG_MFR_ID               3592876363
 #define PLUG_URL_STR              "https://github.com/heebje/NAMpanion"
-                                  // "http://shamelessplugs.net"
+// #define PLUG_URL_STR           "http://shamelessplugs.net"
 #define PLUG_EMAIL_STR            "info@shamelessplugs.net"
 #define PLUG_COPYRIGHT_STR        "Copyright 2023 Shameless Plugs"
 #define PLUG_CLASS_NAME           NAMpanion
 
-#define BUNDLE_NAME               PLUG_NAME
-#define BUNDLE_MFR                PLUG_MFR
+#define BUNDLE_NAME               "NAMpanion"
+#define BUNDLE_MFR                "Shameless Plugs"
 #define BUNDLE_DOMAIN             "net"
 
-#define SHARED_RESOURCES_SUBPATH  PLUG_NAME
+#define SHARED_RESOURCES_SUBPATH  "NAMpanion"
 
 #define PLUG_CHANNEL_IO           "1-1 1-2 2-2"
 
@@ -39,7 +39,7 @@
 
 #define AAX_TYPE_IDS              'IEF1', 'IEF2'
 #define AAX_TYPE_IDS_AUDIOSUITE   'IEA1', 'IEA2'
-#define AAX_PLUG_MFR_STR          PLUG_MFR
+#define AAX_PLUG_MFR_STR          "Shameless Plugs"
 #define AAX_PLUG_NAME_STR         "NAMpanion\nIPEF"
 #define AAX_PLUG_CATEGORY_STR     "Effect"
 #define AAX_DOES_AUDIOSUITE       1

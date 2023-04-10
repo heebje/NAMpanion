@@ -1,4 +1,4 @@
-<REAPER_PROJECT 0.1 "6.78/win64" 1681084588
+<REAPER_PROJECT 0.1 "6.78/win64" 1681127178
   UNDO_FTS 1681033064
   RIPPLE 0
   GROUPOVERRIDE 0 0 0
@@ -135,7 +135,7 @@
     WAK 0 0
     BYPASS 0 0 0
     <JS analysis/loudness_meter ""
-      2 0 0 2 1 1 1 3 -12 -6 0 0 0 1.8 0 - - - - - - - - - - - - - - -1.110461 -7.403996 -7.741951 -7.682954 -6.497937 -7.092427 1.7 - - - - - - - - - - - - - - - - - - - - - - - - - - - - Heeb0001
+      2 0 0 2 1 1 1 3 -12 -6 0 0 0 1.8 0 - - - - - - - - - - - - - - -150 -100 -100 -100 -100 -100 0 - - - - - - - - - - - - - - - - - - - - - - - - - - - - Heeb0001
     >
     PRESETNAME Heeb0001
     FLOATPOS 0 0 0 0
@@ -276,7 +276,7 @@
       <CLAP "CLAP: NAMpanion (Shameless Plugs)" "net.Shameless Plugs.NAMpanion" ""
         CFG 0 750 560 ""
         <STATE
-          Az3P8w+iQUCwZVmW/b4XQFjbtm0LQgVAGo7jOC4EIUAAAAAAAAAAAAAAAAAAAPA/AAAAAAAA8D8AAAAAAAAgQAi1RIPKn7NAAAAAAAAAGEAAAAAAAAAoQA==
+          Az3P8w+iQUAAAAAAAAAAAAAAAAAAACJAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAPA/AAAAAAAA8D8AAAAAAAAgQAi1RIPKn7NAAAAAAAAAGEAAAAAAAAAoQA==
         >
       >
       FLOATPOS 0 0 0 0

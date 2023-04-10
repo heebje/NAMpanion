@@ -1,4 +1,4 @@
-<REAPER_PROJECT 0.1 "6.78/win64" 1681084614
+<REAPER_PROJECT 0.1 "6.78/win64" 1681124753
   UNDO_FTS 1681033758
   RIPPLE 0
   GROUPOVERRIDE 0 0 0
@@ -16,8 +16,8 @@
   VIDEO_CONFIG 0 0 256
   PANMODE 3
   CURSOR 0
-  ZOOM 50.47430264511489 0 0
-  VZOOMEX 11.77286148 15
+  ZOOM 50.47430264511498 0 0
+  VZOOMEX 11.77286148 102
   USE_REC_CFG 0
   RECMODE 1
   SMPTESYNC 0 30 100 40 1000 300 0 0 1 0 0
@@ -29,7 +29,7 @@
   >
   <APPLYFX_CFG
   >
-  RENDER_FILE "C:\Users\Heeb\AppData\Local\Temp\graph.mp4"
+  RENDER_FILE "C:\Users\Heeb\AppData\Local\Temp\graph2.mp4"
   RENDER_FMT 0 2 0
   RENDER_1X 0
   RENDER_RANGE 2 0 0 18 1000
@@ -135,7 +135,7 @@
     WAK 0 0
     BYPASS 0 0 0
     <JS analysis/loudness_meter ""
-      2 0 0 2 1 1 1 3 -12 -6 0 0 0 1.8 0 - - - - - - - - - - - - - - -1.17691 -7.559587 -7.683878 -6.995302 -6.252309 -6.641891 7.4 - - - - - - - - - - - - - - - - - - - - - - - - - - - - Heeb0001
+      2 0 0 2 1 1 1 3 -12 -6 0 0 0 1.8 0 - - - - - - - - - - - - - - -1.101772 -8.841599 -7.582115 -9.508495 -7.499328 -7.734844 3 - - - - - - - - - - - - - - - - - - - - - - - - - - - - Heeb0001
     >
     PRESETNAME Heeb0001
     FLOATPOS 0 0 0 0
@@ -166,13 +166,13 @@
     BEAT -1
     AUTOMODE 0
     VOLPAN 0.35481338923358 0 -1 -1 1
-    MUTESOLO 0 0 0
+    MUTESOLO 1 0 0
     IPHASE 0
     PLAYOFFS 0 1
     ISBUS 0 0
     BUSCOMP 0 0 0 0 0
     SHOWINMIX 1 0.6667 0.5 1 0.5 -1 -1 -1
-    SEL 1
+    SEL 0
     REC 0 0 1 0 0 0 0 0
     VU 2
     TRACKHEIGHT 0 0 0 0 0 0
@@ -244,7 +244,7 @@
     ISBUS 1 1
     BUSCOMP 0 0 0 0 0
     SHOWINMIX 1 0.6667 0.5 1 0.5 0 0 0
-    SEL 1
+    SEL 0
     REC 0 5088 1 0 0 0 0 0
     VU 2
     TRACKHEIGHT 0 0 0 0 0 0
@@ -256,7 +256,7 @@
     MIDIOUT -1
     MAINSEND 1 0
     <FXCHAIN
-      WNDRECT 205 0 1057 698
+      WNDRECT 554 177 1057 698
       SHOW 4
       LASTSEL 3
       DOCKED 0
@@ -457,12 +457,89 @@
       BYPASS 0 0 0
       <VST "VST3: NAMpanion (Shameless Plugs)" NAMpanion.vst3 0 "" 1982889636{F2AEE70D00DE4F4ED626F14B26FB49AA} ""
         pH4wdu5e7f4CAAAAAQAAAAAAAAACAAAAAAAAAAIAAAABAAAAAAAAAAIAAAAAAAAAbAAAAAEAAAD//xAA
-        XAAAAAEAAACmYRgGRmE7QOC6rusKABhAdNu2bYvFD8BOkiRJ4jgWQAAAAAAAAAAAAAAAAAAA8D8AAAAAAADwPwAAAAAAACBAfEUJbfLFrUAAAAAAAAAiQM3MzOxcjy9A
+        XAAAAAEAAAAAAAAAAEBBQAAAAKAw+QxAAAAAAAAAIkAAAAA0MJQWwAAAAHgaLwHAAAAAAAAA8D8AAAAAAADwP3k2x3DD+FlAItznxlu3xUAAAABkrLQgQAAAAIA4liFA
         AAAAAAAAAAAAAAAA
         AAAQAAAA
       >
-      FLOATPOS 104 0 1291 1020
+      FLOATPOS 594 30 1150 924
       FXID {84273B82-9678-4168-A17C-63608BF68457}
+      <PROGRAMENV 9:8 0 "HighFrequencyTweak / NAMpanion"
+        PARAMBASE 0
+        LFO 1
+        LFOWT 1 1
+        AUDIOCTL 0
+        AUDIOCTLWT 1 1
+        LFOSHAPE 5
+        LFOSYNC 0 0 1
+        LFOSPEED 0.124573 0
+        MODWND 0 6 46 466 489
+      >
+      <PROGRAMENV 11:10 0 "HighMaxBoost / NAMpanion"
+        PARAMBASE 0
+        LFO 1
+        LFOWT 1 1
+        AUDIOCTL 0
+        AUDIOCTLWT 1 1
+        LFOSHAPE 5
+        LFOSYNC 0 0 1
+        LFOSPEED 0.124573 0
+        MODWND 0 45 95 505 538
+      >
+      <PROGRAMENV 4:3 0 "High / NAMpanion"
+        PARAMBASE 0
+        LFO 1
+        LFOWT 1 1
+        AUDIOCTL 0
+        AUDIOCTLWT 1 1
+        LFOSHAPE 5
+        LFOSYNC 0 0 1
+        LFOSPEED 0.124573 0
+        MODWND 0 42 479 502 922
+      >
+      <PROGRAMENV 3:2 0 "Mid / NAMpanion"
+        PARAMBASE 0.5
+        LFO 1
+        LFOWT 1 1
+        AUDIOCTL 0
+        AUDIOCTLWT 1 1
+        LFOSHAPE 5
+        LFOSYNC 0 0 1
+        LFOSPEED 0.124573 0
+        MODWND 0 118 329 578 772
+      >
+      <PROGRAMENV 2:1 0 "Low / NAMpanion"
+        PARAMBASE 0
+        LFO 1
+        LFOWT 1 1
+        AUDIOCTL 0
+        AUDIOCTLWT 1 1
+        LFOSHAPE 5
+        LFOSYNC 0 0 1
+        LFOSPEED 0.124573 0
+        MODWND 0 68 286 528 729
+      >
+      <PROGRAMENV 10:9 0 "LowMaxBoost / NAMpanion"
+        PARAMBASE 0
+        LFO 1
+        LFOWT 1 1
+        AUDIOCTL 0
+        AUDIOCTLWT 1 1
+        LFOSHAPE 5
+        LFOSYNC 0 0 1
+        LFOSPEED 0.124573 0
+        MODWND 0 25 216 485 659
+      >
+      <PROGRAMENV 8:7 0 "LowFrequencyTweak / NAMpanion"
+        PARAMBASE 0
+        LFO 1
+        LFOWT 1 1
+        AUDIOCTL 0
+        AUDIOCTLWT 1 1
+        LFOSHAPE 5
+        LFOSYNC 0 0 1
+        LFOSPEED 0.124573 0
+        MODWND 0 82 143 542 586
+      >
       WAK 0 0
       BYPASS 1 0 0
       <VST "VST3: EQ Curve Analyzer (Bertom)" Bertom_EQCurveAnalyzer.vst3 0 "" 1981566708{ABCDEF019182FAEB4252544D45514341} ""
@@ -476,7 +553,7 @@
         AER1bW15IEZhY3RvcnkgUHJlc2V0ABAAAAA=
       >
       PRESETNAME "Dummy Factory Preset"
-      FLOAT 952 0 968 554
+      FLOATPOS 952 0 968 554
       FXID {3765DCA7-6293-473C-89A1-936CFB09E887}
       WAK 0 0
       BYPASS 1 0 0
@@ -644,7 +721,7 @@
     MIDIOUT -1
     MAINSEND 1 0
     <FXCHAIN
-      WNDRECT 863 0 1057 488
+      WNDRECT 205 0 1057 698
       SHOW 0
       LASTSEL 0
       DOCKED 0
@@ -696,7 +773,7 @@
     MIDIOUT -1
     MAINSEND 1 0
     <FXCHAIN
-      WNDRECT 123 0 1453 994
+      WNDRECT 554 177 1057 698
       SHOW 0
       LASTSEL 0
       DOCKED 0
@@ -710,7 +787,7 @@
       FADEIN 0 0.002 0 0 0 0 0
       FADEOUT 0 0.002 0 0 0 0 0
       MUTE 0 0
-      SEL 1
+      SEL 0
       IGUID {7C378E70-9152-45CA-A9FD-B35E7B212104}
       IID 3
       NAME 08-Guitar-220415_1338-glued-02.wav
@@ -865,7 +942,7 @@
       FADEIN 0 0.002 0 0 0 0 0
       FADEOUT 0 0.002 0 0 0 0 0
       MUTE 0 0
-      SEL 1
+      SEL 0
       IGUID {1FE5CFC7-E19E-45AB-BDA2-C309549811BD}
       IID 4
       NAME fghdghdghfh.wav
@@ -957,7 +1034,7 @@
       FADEIN 0 1.022609 0 0 0 0 0
       FADEOUT 0 0.002 0 0 0 0 0
       MUTE 0 0
-      SEL 1
+      SEL 0
       IGUID {17160BCE-ADC8-4289-A52B-F711B709099C}
       IID 6
       NAME "2023-04-09 21-39-27.mkv"
@@ -1003,7 +1080,7 @@
       FADEIN 0 1.022609 0 0 0 0 0
       FADEOUT 0 0.002 0 0 0 0 0
       MUTE 0 0
-      SEL 1
+      SEL 0
       IGUID {A157FF68-0748-469F-9529-227E75472A75}
       IID 7
       NAME fghdghfgh.wav
@@ -1014,6 +1091,98 @@
       GUID {ACA030FC-0225-437B-A325-336EC4E8CE85}
       <SOURCE WAVE
         FILE "C:\Users\Heeb\AppData\Local\Temp\fghdghfgh.wav"
+      >
+    >
+  >
+  <TRACK {6F03498A-6847-40B4-A991-28FF1D2BCB04}
+    NAME "2023-04-10 10-23-35"
+    PEAKCOL 16576
+    BEAT -1
+    AUTOMODE 0
+    VOLPAN 1 0 -1 -1 1
+    MUTESOLO 1 0 0
+    IPHASE 0
+    PLAYOFFS 0 1
+    ISBUS 0 0
+    BUSCOMP 0 0 0 0 0
+    SHOWINMIX 1 0.6667 0.5 1 0.5 0 0 0
+    SEL 0
+    REC 0 0 1 0 0 0 0 0
+    VU 2
+    TRACKHEIGHT 0 0 0 0 0 0
+    INQ 0 0 0 0.5 100 0 0 100
+    NCHAN 2
+    FX 1
+    TRACKID {6F03498A-6847-40B4-A991-28FF1D2BCB04}
+    PERF 0
+    MIDIOUT -1
+    MAINSEND 1 0
+    <ITEM
+      POSITION 0
+      SNAPOFFS 0
+      LENGTH 27.20962600837419
+      LOOP 1
+      ALLTAKES 0
+      FADEIN 0 0.002 0 0 0 0 0
+      FADEOUT 0 0.002 0 0 0 0 0
+      MUTE 0 0
+      SEL 1
+      IGUID {E80F6A6D-388C-492E-919B-A24D3EDBA4DD}
+      IID 8
+      NAME "2023-04-10 10-23-35.mkv"
+      VOLPAN 1 0 1 -1
+      SOFFS 118.99855570622749
+      PLAYRATE 1 0 0 -1 0 0.0025
+      CHANMODE 0
+      GUID {2670870B-ECE5-494E-97D4-649015165C77}
+      <SOURCE VIDEO
+        FILE "C:\Users\Heeb\AppData\Local\Temp\2023-04-10 10-23-35.mkv"
+      >
+    >
+  >
+  <TRACK {2CC1A6E0-D47D-4361-89A5-6CA44573787B}
+    NAME hgghfdgh
+    PEAKCOL 16576
+    BEAT -1
+    AUTOMODE 0
+    VOLPAN 1 0 -1 -1 1
+    MUTESOLO 1 0 0
+    IPHASE 0
+    PLAYOFFS 0 1
+    ISBUS 0 0
+    BUSCOMP 0 0 0 0 0
+    SHOWINMIX 1 0.6667 0.5 1 0.5 0 0 0
+    SEL 0
+    REC 0 0 1 0 0 0 0 0
+    VU 2
+    TRACKHEIGHT 0 0 0 0 0 0
+    INQ 0 0 0 0.5 100 0 0 100
+    NCHAN 2
+    FX 1
+    TRACKID {2CC1A6E0-D47D-4361-89A5-6CA44573787B}
+    PERF 0
+    MIDIOUT -1
+    MAINSEND 1 0
+    <ITEM
+      POSITION 0
+      SNAPOFFS 0
+      LENGTH 27.2096260083742
+      LOOP 1
+      ALLTAKES 0
+      FADEIN 0 0.002 0 0 0 0 0
+      FADEOUT 0 0.002 0 0 0 0 0
+      MUTE 0 0
+      SEL 1
+      IGUID {0CAE8D2A-CB5A-4B58-A896-EB651D75947D}
+      IID 9
+      NAME hgghfdgh.wav
+      VOLPAN 1 0 1 -1
+      SOFFS 69.05704065829246
+      PLAYRATE 1 0 0 -1 0 0.0025
+      CHANMODE 0
+      GUID {20011992-D0B3-4171-8EDB-7A92C53AF06C}
+      <SOURCE WAVE
+        FILE "C:\Users\Heeb\AppData\Local\Temp\hgghfdgh.wav"
       >
     >
   >

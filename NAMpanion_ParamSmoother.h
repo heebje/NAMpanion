@@ -61,8 +61,8 @@ public:
     }
   }
 
-  inline bool ParameterSmoother::get(int      _param,
-                                     double&  _value) {
+  inline bool get(int      _param,
+                  double&  _value) {
 
     Smoother* smoother = &m_smoothers[_param];
 
