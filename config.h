@@ -4,7 +4,8 @@
 #define PLUG_VERSION_STR          "1.0.0"
 #define PLUG_UNIQUE_ID            654002602
 #define PLUG_MFR_ID               3592876363
-#define PLUG_URL_STR              "http://shamelessplugs.net"
+#define PLUG_URL_STR              "https://github.com/heebje/NAMpanion"
+                                  // "http://shamelessplugs.net"
 #define PLUG_EMAIL_STR            "info@shamelessplugs.net"
 #define PLUG_COPYRIGHT_STR        "Copyright 2023 Shameless Plugs"
 #define PLUG_CLASS_NAME           NAMpanion

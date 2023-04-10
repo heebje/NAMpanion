@@ -57,13 +57,6 @@ NAMpanion::NAMpanion(const InstanceInfo& info): iplug::Plugin(info, MakeConfig(k
       // Frequency:
       case kParamLowFreqMin:
       case kParamHighFreqMax: {
-        /*
-        GetParam(p)->InitFrequency(paramNames [p],
-                                   paramValues[p].default,
-                                   paramValues[p].minimum,
-                                   paramValues[p].maximum,
-                                   paramValues[p].step);
-        */
         GetParam(p)->InitDouble(paramNames [p],         // InitDouble, to get rid of units showing
                                 paramValues[p].default,
                                 paramValues[p].minimum,
@@ -85,12 +78,13 @@ NAMpanion::NAMpanion(const InstanceInfo& info): iplug::Plugin(info, MakeConfig(k
   smoother.reset(this, kSmoothingTimeMs);
 
   mMakeGraphicsFunc = [&]() {
-    return MakeGraphics(*this, PLUG_WIDTH, PLUG_HEIGHT, PLUG_FPS, GetScaleForScreen(PLUG_WIDTH, PLUG_HEIGHT));
+    return MakeGraphics(*this, PLUG_WIDTH, PLUG_HEIGHT*1.6, PLUG_FPS, GetScaleForScreen(PLUG_WIDTH, PLUG_HEIGHT));
   };
 
   mLayoutFunc = [&](IGraphics* pGraphics) {
 
     pGraphics->EnableMouseOver(true);
+    pGraphics->EnableTooltips(true);
 
     pGraphics->AttachCornerResizer(new NAMCornerResizer(IRECT(0, 0, PLUG_WIDTH, PLUG_HEIGHT),
                                                         24.0,
@@ -122,21 +116,25 @@ NAMpanion::NAMpanion(const InstanceInfo& info): iplug::Plugin(info, MakeConfig(k
                                                 style.WithDrawFrame(false).WithValueText({30,
                                                                                           EAlign::Center,
                                                                                           NAM_3})));
+    pGraphics->AttachControl(new IURLControl(titleLabel.GetMidHPadded(160),
+                                             "",
+                                             PLUG_URL_STR));
 
     for (int p = 0; p < kNumParams; p++) {
 
       switch(p) {
 
+        // Big knobs: /////////////////////////////////////////////////////////
         case kParamDrive:
         case kParamLow:
         case kParamMid:
         case kParamHigh:
         case kParamOutput: {
-          // Big knobs:
           m_Controls[p] = pGraphics->AttachControl(new IVKnobControl(controlCoordinates[p],
                                                                      p,
                                                                      paramLabels[p],
                                                                      style));
+          m_Controls[p]->SetTooltip(paramToolTips[p]);
           break;
         }
 
@@ -147,7 +145,8 @@ NAMpanion::NAMpanion(const InstanceInfo& info): iplug::Plugin(info, MakeConfig(k
                                                        paramLabels[p],
                                                        style.WithShowLabel(false),
                                                        "off",
-                                                       "on"));
+                                                       "on"))
+            ->SetTooltip(paramToolTips[p]);
           // Not to be disabled:
           m_Controls[p] = 0;
           break;
@@ -160,6 +159,7 @@ NAMpanion::NAMpanion(const InstanceInfo& info): iplug::Plugin(info, MakeConfig(k
                                                                        style.WithShowLabel(false),
                                                                        "1x",
                                                                        "16x"));
+          m_Controls[p]->SetTooltip(paramToolTips[p]);
           break;
         }
 
@@ -178,6 +178,7 @@ NAMpanion::NAMpanion(const InstanceInfo& info): iplug::Plugin(info, MakeConfig(k
                                                                           .WithValueText(IText(10,
                                                                                                EVAlign::Bottom,
                                                                                                NAM_3))));
+          m_Controls[p]->SetTooltip(paramToolTips[p]);
           break;
         }
 
@@ -186,6 +187,20 @@ NAMpanion::NAMpanion(const InstanceInfo& info): iplug::Plugin(info, MakeConfig(k
           break;
         }
       }
+
+      m_Plot = pGraphics->AttachControl(new IVPlotControl(IRECT(45,240,PLUG_WIDTH-45,400),
+                                                          {
+                                                            { NAM_2.WithContrast(-0.33),
+                                                              [&](double x) -> double {
+                                                                /*const double ln1000 = log(1000.0);
+                                                                const double sr     = GetSampleRate();*/
+                                                                return m_PlotValues[int(x * PLUG_WIDTH)];
+                                                                // return log(abs(lowCut[0].response(20*exp(ln1000 * x)/sr)));
+                                                              }
+                                                            }
+                                                          },
+                                                          pGraphics->Width()));
+
     }
 
     updateKnobs();
@@ -217,6 +232,61 @@ void NAMpanion::OnParamChange(int paramIdx) {
   if ((paramIdx == kParamActive) && GetUI()) {
     updateKnobs();
   }
+
+}
+
+void NAMpanion::OnIdle() {
+  if (m_PlotNeedsRecalc && m_Plot && GetUI()) {
+
+    if (m_Active) {
+
+      const double sr = GetSampleRate();
+
+      m_LowCut    [kPlotChannel].setup(sr, getLowCutFreq());
+      m_LowShelf  [kPlotChannel].setup(sr, getLowShelfFreq(),   getLowShelfBoost(),   kLowBoostSlope);
+
+      m_MidBefore [kPlotChannel].setup(sr, getMidFreq(),        getMidBefore_dB(),    getMidBandwidth());
+      m_MidAfter  [kPlotChannel].setup(sr, getMidFreq(),        getMidAfter_dB(),     getMidBandwidth());
+
+      m_HighCut   [kPlotChannel].setup(sr, getHighCutFreq());
+      m_HighShelf [kPlotChannel].setup(sr, getHighShelfFreq(),  getHighShelfBoost(),  kHighBoostSlope);
+
+      m_DCBlock   [kPlotChannel].setup(sr, kDCBlockFreq);
+
+      const double ln1000 = std::log(1000.0);
+
+      const double  maxBoost = DBToAmp(std::max({ getLowShelfBoost(),
+                                                  getMidBefore_dB(),
+                                                  getHighShelfBoost() }));
+      NOP;
+
+      for (int s = 0; s < PLUG_WIDTH; s++) {
+        double f = 20.0 * exp(ln1000 * s / PLUG_WIDTH) / sr;
+        m_PlotValues[s] = std::log(abs(m_LowCut   [kPlotChannel].response(f))
+                                 * abs(m_LowShelf [kPlotChannel].response(f))
+
+                                 * abs(m_MidBefore[kPlotChannel].response(f))
+                                 * abs(m_MidAfter [kPlotChannel].response(f))
+
+                                 * abs(m_HighCut  [kPlotChannel].response(f))
+                                 * abs(m_HighShelf[kPlotChannel].response(f))
+
+                                 * abs(m_DCBlock  [kPlotChannel].response(f))
+
+                                 / maxBoost
+                                  ) * 0.5 + 0.5;
+
+      }
+    } else {
+      for (int s = 0; s < PLUG_WIDTH; s++) {
+        m_PlotValues[s] = 0.0;
+      }
+    }
+
+    m_PlotNeedsRecalc = false;
+    m_Plot->SetDirty(false);
+
+  }
 }
 
 void NAMpanion::ProcessBlock(sample** inputs, sample** outputs, int nFrames) {
@@ -247,20 +317,20 @@ void NAMpanion::ProcessBlock(sample** inputs, sample** outputs, int nFrames) {
 
           outputs[ch][s] =
             m_Output_Real *
-              -dcBlock[ch].filter(  // Minus, because this filter erroneously inverts polarity.
-                                    // I reported this bug, but the developer denied there was a problem.
-                highCut[ch].filter(
-                  lowShelf[ch].filter(
-                    midAfter[ch].filter(
-                      oversampler[ch].Process(
+              -m_DCBlock[ch].filter(  // Minus, because this filter erroneously inverts polarity.
+                                      // I reported this bug, but the developer denied there was a problem.
+                m_HighCut[ch].filter(
+                  m_LowShelf[ch].filter(
+                    m_MidAfter[ch].filter(
+                      m_Oversampler[ch].Process(
                         m_Drive_Real *
-                          midBefore[ch].filter(
-                            highShelf[ch].filter(
-                              -lowCut[ch].filter( // Minus, because this filter erroneously inverts polarity.
-                                                  // I reported this bug, but the developer denied there was a problem.
+                          m_MidBefore[ch].filter(
+                            m_HighShelf[ch].filter(
+                              -m_LowCut[ch].filter( // Minus, because this filter erroneously inverts polarity.
+                                                    // I reported this bug, but the developer denied there was a problem.
                                 inputs[ch][s]))),
                         [&](sample input) {
-                          return waveshaper[ch].processAudioSample(input);
+                          return m_Waveshaper[ch].processAudioSample(input);
                         })))));
 
           if (m_Active != 1.0) {
@@ -296,23 +366,17 @@ void NAMpanion::updateKnobs() {
 
 inline void NAMpanion::AdjustLow() {
 
-  const double  sr             = GetSampleRate();
-  const double  lowShelfBoost  = getLowShelfBoost();
-  double        lowCutFreq;
-  double        lowShelfFreq;
-
-  if (m_LowPos < 0.0) {
-    lowCutFreq   = getLowFreq();
-    lowShelfFreq = m_LowFreqMin;
-  } else {
-    lowCutFreq   = m_LowFreqMin;
-    lowShelfFreq = getLowFreq();
-  }
+  const double  sr            = GetSampleRate();
+  const double  lowShelfBoost = getLowShelfBoost();
+  double        lowCutFreq    = getLowCutFreq();
+  double        lowShelfFreq  = getLowShelfFreq();
 
   for (int ch = 0; ch < kMaxNumChannels; ch++) {
-    lowCut   [ch].setup(sr, lowCutFreq);
-    lowShelf [ch].setup(sr, lowShelfFreq, lowShelfBoost, kLowBoostSlope);
+    m_LowCut  [ch].setup(sr, lowCutFreq);
+    m_LowShelf[ch].setup(sr, lowShelfFreq, lowShelfBoost, kLowBoostSlope);
   }
+
+  m_PlotNeedsRecalc = true;
 
 }
 
@@ -320,51 +384,44 @@ inline void NAMpanion::AdjustMid() {
 
   const double  sr            = GetSampleRate();
   const double  midFreq       = getMidFreq();
+  const double  midBefore_dB  = getMidBefore_dB();
+  const double  midAfter_dB   = getMidAfter_dB();
   const double  midBandwidth  = getMidBandwidth();
 
   for (int ch = 0; ch < kMaxNumChannels; ch++) {
-    if (m_Mid_dB > 0.0) {
-      // Only the pre-drive mid is active:
-      midBefore[ch].setup(sr, midFreq, m_Mid_dB, midBandwidth);
-      midAfter [ch].setup(sr, midFreq, 0.0,      midBandwidth);
-    } else {
-      // Only the post-drive mid is active:
-      midBefore[ch].setup(sr, midFreq, 0.0,      midBandwidth);
-      midAfter [ch].setup(sr, midFreq, m_Mid_dB, midBandwidth);
-    }
+    m_MidBefore[ch].setup(sr, midFreq, midBefore_dB, midBandwidth);
+    m_MidAfter [ch].setup(sr, midFreq, midAfter_dB,  midBandwidth);
   }
+
+  m_PlotNeedsRecalc = true;
+
 }
 
 inline void NAMpanion::AdjustHigh() {
 
-  const double  sr             = GetSampleRate();
-  const double  highShelfBoost = getHighShelfBoost();
-  double        highCutFreq;
-  double        highShelfFreq;
-
-  if (m_HighPos < 0.0) {
-    highCutFreq   = getHighFreq();
-    highShelfFreq = m_HighFreqMax;
-  } else {
-    highCutFreq   = m_HighFreqMax;
-    highShelfFreq = getHighFreq();
-  }
+  const double  sr              = GetSampleRate();
+  const double  highShelfBoost  = getHighShelfBoost();
+  double        highCutFreq     = getHighCutFreq();
+  double        highShelfFreq   = getHighShelfFreq();
 
   for (int ch = 0; ch < kMaxNumChannels; ch++) {
-    highCut  [ch].setup(sr, highCutFreq);
-    highShelf[ch].setup(sr, highShelfFreq, highShelfBoost, kHighBoostSlope);
+    m_HighCut  [ch].setup(sr, highCutFreq);
+    m_HighShelf[ch].setup(sr, highShelfFreq, highShelfBoost, kHighBoostSlope);
   }
+
+  m_PlotNeedsRecalc = true;
+
 }
 
 inline void NAMpanion::AdjustOversampling() {
 
   for (int ch = 0; ch < kMaxNumChannels; ch++) {
     if ((m_Oversampling >= 0.5) &&
-        (OverSampler<sample>::RateToFactor(oversampler[ch].GetRate()) != EFactor::k16x)) {
-      oversampler[ch].SetOverSampling(EFactor::k16x);
+        (OverSampler<sample>::RateToFactor(m_Oversampler[ch].GetRate()) != EFactor::k16x)) {
+      m_Oversampler[ch].SetOverSampling(EFactor::k16x);
     } else if ((m_Oversampling < 0.5) &&
-        (OverSampler<sample>::RateToFactor(oversampler[ch].GetRate()) != EFactor::kNone)) {
-      oversampler[ch].SetOverSampling(EFactor::kNone);
+        (OverSampler<sample>::RateToFactor(m_Oversampler[ch].GetRate()) != EFactor::kNone)) {
+      m_Oversampler[ch].SetOverSampling(EFactor::kNone);
     }
   }
 
@@ -379,9 +436,9 @@ inline void NAMpanion::updateStages(bool _resetting) {
     for (int ch = 0; ch < kMaxNumChannels; ch++) {
 
       AdjustOversampling();
-      oversampler[ch].Reset(GetBlockSize());
+      m_Oversampler[ch].Reset(GetBlockSize());
 
-      dcBlock[ch].setup(sr, kDCBlockFreq);
+      m_DCBlock[ch].setup(sr, kDCBlockFreq);
 
     }
   }
@@ -397,8 +454,8 @@ inline void NAMpanion::updateStages(bool _resetting) {
           m_Drive_Real = DBToAmp(v);
 
           for (int ch = 0; ch < kMaxNumChannels; ch++) {
-            waveshaper[ch].setA((v                      - paramValues[p].minimum) /
-                                (paramValues[p].maximum - paramValues[p].minimum));
+            m_Waveshaper[ch].setA((v                      - paramValues[p].minimum) /
+                                  (paramValues[p].maximum - paramValues[p].minimum));
           }
 
         }
@@ -450,6 +507,7 @@ inline void NAMpanion::updateStages(bool _resetting) {
         double v;
         if (smoother.get(p, v) || _resetting) {
           m_Active = v;
+          m_PlotNeedsRecalc = true;
         }
         break;
       }

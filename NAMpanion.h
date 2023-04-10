@@ -19,6 +19,8 @@ using namespace igraphics;
 const int     kNumPresets       = 1;
 const int     kMaxNumChannels   = 2;
 
+const int     kPlotChannel      = kMaxNumChannels;
+
 const double  kSmoothingTimeMs  = 20.0; // Parameter smoothing in milliseconds
 
 enum EParams {
@@ -50,11 +52,10 @@ char* paramNames[kNumParams] = {
   "Active",
   "Oversampling",
 
-  "LowTweak",
-  "HighTweak",
+  "LowFrequencyTweak",
+  "HighFrequencyTweak",
   "LowMaxBoost",
   "HighMaxBoost",
-
 };
 
 char* paramLabels[kNumParams] = {
@@ -70,7 +71,20 @@ char* paramLabels[kNumParams] = {
   "Hi Twk",
   "Lo Max",
   "Hi Max",
+};
 
+char* paramToolTips[kNumParams] = {
+  "Drive (dB):\nControls the saturation / overdrive / distortion level",
+  "Low:\nControls the overall bass response, by cutting lows before the drive section, or boosting lows after it",
+  "Mid (dB):\nControls the overall midrange response, by boosting mids before the drive section, or cuttings mids after it",
+  "High:\nControls the overall treble response, by boosting highs before the drive section, or cuttings highs after it",
+  "Output (dB):\nControls the final output volume.\nIt can be set higher than unity gain in order to boost whatever comes after it",
+  "Active:\nSwitches the plugin on or off",
+  "Oversampling:\nSwitches oversampling to 16x, or off.\nLack of oversampling will lead to aliasing, especially at higher Drive settings",
+  "Low Frequency Tweak:\nSets the 'bottom' of the EQ's total range",
+  "High Frequency Tweak:\nSets the 'top' of the EQ's total range",
+  "Low Max Boost:\nSets the maximum boost level of the low shelving filter (after the drive section)",
+  "High Max Boost:\nSets the maximum boost level of the high shelving filter (before the drive section)",
 };
 
 struct VALUES {
@@ -92,12 +106,11 @@ VALUES paramValues[kNumParams] = {  // (default, minimum, maximum, step)
 
   // Tweaking (small) knoblets:
 
-  VALUES(sqrt(  20.0*  200.0),   20.0,   200.0, 0.01),   // Low  Frequency Minimum
+  VALUES(sqrt(   8.0*  200.0),    8.0,   200.0, 0.01),   // Low  Frequency Minimum
   VALUES(sqrt(2000.0*20000.0), 2000.0, 20000.0, 0.01),   // High Frequency Maximum
 
   VALUES( 6.0, 3.0,  9.0, 0.01),  // Low  Max Boost
   VALUES(12.0, 3.0, 21.0, 0.01),  // High Max Boost
-
 };
 
 IRECT controlCoordinates[kNumParams] = {
@@ -115,20 +128,13 @@ IRECT controlCoordinates[kNumParams] = {
 
   IRECT(              45+1*35, 35,         45+30+1*35, 35+40),  // Low  Max Boost
   IRECT(PLUG_WIDTH-45-30-1*35, 35, PLUG_WIDTH-45-1*35, 35+40),  // High Max Boost
-
 };
 
 const double  kFreqCentre       = sqrt(paramValues[kParamLowFreqMin ].minimum
                                      * paramValues[kParamHighFreqMax].maximum);
 
-// const double  kMidFreqDefault   = kLowFreqMax;
-
-// const double  qkLowBoostMax      = 6.0;
-const double  kLowBoostSlope    = 1.0;
-
-// const double  qkHighBoostMax     = 18.0;
-const double  kHighBoostSlope   = 1.0;
-
+const double  kLowBoostSlope    =  1.0;
+const double  kHighBoostSlope   =  1.0;
 const double  kDCBlockFreq      = 10.0;
 
 class NAMpanion final: public Plugin {
@@ -171,6 +177,46 @@ private:
     return sqrt(getLowFreq() * getHighFreq());
   }
 
+  double inline getMidBefore_dB() {
+    return std::max(m_Mid_dB, 0.0);
+  }
+
+  double inline getMidAfter_dB() {
+    return std::min(m_Mid_dB, 0.0);
+  }
+
+  double inline getLowCutFreq() {
+    if (m_LowPos < 0.0) {
+      return getLowFreq();
+    } else {
+      return m_LowFreqMin;
+    }
+  }
+
+  double inline getLowShelfFreq() {
+    if (m_LowPos < 0.0) {
+      return m_LowFreqMin;
+    } else {
+      return getLowFreq();
+    }
+  }
+
+  double inline getHighCutFreq() {
+    if (m_HighPos < 0.0) {
+      return getHighFreq();
+    } else {
+      return m_HighFreqMax;
+    }
+  }
+
+  double inline getHighShelfFreq() {
+    if (m_HighPos < 0.0) {
+      return m_HighFreqMax;
+    } else {
+      return getHighFreq();
+    }
+  }
+
   double inline getHighFreq() { // Currently active high frequency, which determins either
                                 // the high cut filter's or the high shelf filter's frequency,
                                 // depending on high knob position.
@@ -196,23 +242,26 @@ private:
 
   // Filters etc:
 
-  Iir::Butterworth::HighPass<1>   lowCut    [kMaxNumChannels];
-  Iir::RBJ::LowShelf              lowShelf  [kMaxNumChannels];
+  Iir::Butterworth::HighPass<1>   m_LowCut    [kMaxNumChannels + 1];
+  Iir::RBJ::LowShelf              m_LowShelf  [kMaxNumChannels + 1];
 
-  Iir::RBJ::BandShelf             midBefore [kMaxNumChannels];
-  Iir::RBJ::BandShelf             midAfter  [kMaxNumChannels];
+  Iir::RBJ::BandShelf             m_MidBefore [kMaxNumChannels + 1];
+  Iir::RBJ::BandShelf             m_MidAfter  [kMaxNumChannels + 1];
 
-  Iir::RBJ::LowPass               highCut   [kMaxNumChannels];
-  Iir::RBJ::HighShelf             highShelf [kMaxNumChannels];
+  Iir::RBJ::LowPass               m_HighCut   [kMaxNumChannels + 1];
+  Iir::RBJ::HighShelf             m_HighShelf [kMaxNumChannels + 1];
 
-  OverSampler<sample>             oversampler[kMaxNumChannels] = {
+  Iir::Butterworth::HighPass<1>   m_DCBlock   [kMaxNumChannels + 1];
+
+  OverSampler<sample>             m_Oversampler[kMaxNumChannels] = {
                                     OverSampler(EFactor::k16x, false),  // 16x, no block processing
                                     OverSampler(EFactor::k16x, false)
                                   };
-  WaveShaperAsym2                 waveshaper[kMaxNumChannels];
+  WaveShaperAsym2                 m_Waveshaper[kMaxNumChannels];
 
-  Iir::Butterworth::HighPass<1>   dcBlock   [kMaxNumChannels];
-
+  double                          m_PlotValues[PLUG_WIDTH];
+  IControl*                       m_Plot = 0;
+  bool                            m_PlotNeedsRecalc = true;
 
   inline void updateKnobs();
   inline void AdjustLow();
@@ -225,6 +274,7 @@ public:
   NAMpanion(const InstanceInfo& info);
   void OnReset() override;
   void OnParamChange(int paramIdx) override;
+  void OnIdle() override;
   void ProcessBlock(sample** inputs, sample** outputs, int nFrames) override;
 
 };
