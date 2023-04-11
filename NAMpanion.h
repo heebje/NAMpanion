@@ -12,7 +12,6 @@
 #include "NAMpanion_ParamSmoother.h"
 #include "NAMpanion_WaveShaper.h"
 
-
 using namespace iplug;
 using namespace igraphics;
 
@@ -22,6 +21,10 @@ const int     kMaxNumChannels   = 2;
 const int     kPlotChannel      = kMaxNumChannels;
 
 const double  kSmoothingTimeMs  = 20.0; // Parameter smoothing in milliseconds
+
+char* OSFactorLabels[EFactor::kNumFactors] = {
+  OVERSAMPLING_FACTORS_VA_LIST
+};
 
 enum EParams {
   // Main parameters (the big knobs):
@@ -80,7 +83,7 @@ char* paramToolTips[kNumParams] = {
   "High:\nControls the overall treble response, by boosting highs before the drive section, or cuttings highs after it",
   "Output (dB):\nControls the final output volume.\nIt can be set higher than unity gain in order to boost whatever comes after it",
   "Active:\nSwitches the plugin on or off",
-  "Oversampling:\nSwitches oversampling to 16x, or off.\nLack of oversampling will lead to aliasing, especially at higher Drive settings",
+  "Oversampling:\nAllows for oversampling from 2x to 16x, or none.\nLack of oversampling will lead to aliasing, especially at higher Drive settings",
   "Low Frequency Tweak:\nSets the 'bottom' of the EQ's total range",
   "High Frequency Tweak:\nSets the 'top' of the EQ's total range",
   "Low Max Boost:\nSets the maximum boost level of the low shelving filter (after the drive section)",
@@ -116,13 +119,14 @@ public:
 VALUES paramValues[kNumParams] = {  // (default, minimum, maximum, step)
 
   // Main (big) knobs:
-  VALUES(0.0,   0.0,  69.0, 0.01),  // Drive
+  VALUES(0.0, -18.0, +48.0, 0.01),  // Drive, in dB
   VALUES(0.0, -10.0, +10.0, 0.01),  // Low
-  VALUES(0.0,  -9.0,  +9.0, 0.01),  // Mid
+  VALUES(0.0, -12.0, +12.0, 0.01),  // Mid, in dB
   VALUES(0.0, -10.0, +10.0, 0.01),  // High
-  VALUES(0.0, -51.0, +18.0, 0.01),  // Output
-  VALUES(true),                     // Active
-  VALUES(true),                     // Oversampling
+  VALUES(0.0, -48.0, +18.0, 0.01),  // Output, in dB
+
+  VALUES(true),                                             // Active
+  VALUES(EFactor::k16x, EFactor::kNone, EFactor::k16x, 1),  // Oversampling
 
   // Tweaking (small) knoblets:
 
@@ -169,9 +173,9 @@ private:
   double  m_HighPos       =         paramValues[kParamHigh        ].def;  // Position of High knob, -10..+10
   double  m_Output_Real   = DBToAmp(paramValues[kParamOutput      ].def); // Output gain in real terms, from dB
   double  m_Active        =         paramValues[kParamActive      ].def;  // 0.0..1.0
-  double  m_Oversampling  =         paramValues[kParamOversampling].def;  // 0.0..1.0
+  EFactor m_Oversampling  = EFactor(paramValues[kParamOversampling].def);
 
-    // Little tweak knoblets:
+  // Little tweak knoblets:
   double  m_LowFreqMin    =         paramValues[kParamLowFreqMin  ].def;  // Lowest  frequency for low  filters
   double  m_HighFreqMax   =         paramValues[kParamHighFreqMax ].def;  // Highest frequency for high filters
   double  m_LowMaxBoost   =         paramValues[kParamLowMaxBoost ].def;  // Maximum boost of low  shelving filter
