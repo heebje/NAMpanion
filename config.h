@@ -1,7 +1,7 @@
 #define PLUG_NAME                 "NAMpanion"
 #define PLUG_MFR                  "Shameless Plugs"
 #define PLUG_VERSION_HEX          0x00010000
-#define PLUG_VERSION_STR          "1.0.1"
+#define PLUG_VERSION_STR          "1.0.2"
 #define PLUG_UNIQUE_ID            654002602
 #define PLUG_MFR_ID               3592876363
 #define PLUG_URL_STR              "https://github.com/heebje/NAMpanion"

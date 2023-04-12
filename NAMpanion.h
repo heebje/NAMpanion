@@ -22,25 +22,25 @@ const int     kPlotChannel      = kMaxNumChannels;
 
 const double  kSmoothingTimeMs  = 20.0; // Parameter smoothing in milliseconds
 
-#define NAM_OVERSAMPLING_FACTORS_VA_LIST "None", "2x", "4x", "8x", "16x", "32x", "64x", "128x", "256x"
-
-enum ENAMpanionFactor {
-  kNAMpanionNone = 0,
-  kNAMpanion2x,
-  kNAMpanion4x,
-  kNAMpanion8x,
-  kNAMpanion16x,
-  kNAMpanion32x,
-  kNAMpanion64x,
-  kNAMpanion128x,
-  kNAMpanion256x,
-  ////////////////////
-  kNumNAMpanionFactors
-};
-
-char* OSFactorLabels[ENAMpanionFactor::kNumNAMpanionFactors] = {
-  NAM_OVERSAMPLING_FACTORS_VA_LIST
-};
+//#define NAM_OVERSAMPLING_FACTORS_VA_LIST "None", "2x", "4x", "8x", "16x", "32x", "64x", "128x", "256x"
+//
+//enum ENAMpanionFactor {
+//  kNAMpanionNone = 0,
+//  kNAMpanion2x,
+//  kNAMpanion4x,
+//  kNAMpanion8x,
+//  kNAMpanion16x,
+//  kNAMpanion32x,
+//  kNAMpanion64x,
+//  kNAMpanion128x,
+//  kNAMpanion256x,
+//  ////////////////////
+//  kNumNAMpanionFactors
+//};
+//
+//char* OSFactorLabels[ENAMpanionFactor::kNumNAMpanionFactors] = {
+//  NAM_OVERSAMPLING_FACTORS_VA_LIST
+//};
 
 enum EParams {
   // Main parameters (the big knobs):
@@ -99,7 +99,8 @@ char* paramToolTips[kNumParams] = {
   "High:\nControls the overall treble response, by boosting highs before the drive section, or cuttings highs after it",
   "Output (dB):\nControls the final output volume.\nIt can be set higher than unity gain in order to boost whatever comes after it",
   "Active:\nSwitches the plugin on or off",
-  "Oversampling:\nAllows for oversampling from 2x to 256x, or none.\nLack of oversampling will lead to aliasing, especially at higher Drive settings",
+  //  "Oversampling:\nAllows for oversampling from 2x to 256x, or none.\nLack of oversampling will lead to aliasing, especially at higher Drive settings",
+  "Oversampling:\nSwitches between 16x oversampling, or none.\nLack of oversampling will lead to aliasing, especially at higher Drive settings",
   "Low Frequency Tweak:\nSets the 'bottom' of the EQ's total range",
   "High Frequency Tweak:\nSets the 'top' of the EQ's total range",
   "Low Max Boost:\nSets the maximum boost level of the low shelving filter (after the drive section)",
@@ -141,11 +142,12 @@ VALUES paramValues[kNumParams] = {  // (default, minimum, maximum, step)
   VALUES(0.0, -10.0, +10.0, 0.01),  // High
   VALUES(0.0, -48.0, +18.0, 0.01),  // Output, in dB
 
-  VALUES(true),                                             // Active
-  VALUES(ENAMpanionFactor::kNAMpanion16x,
-         ENAMpanionFactor::kNAMpanionNone,
-         ENAMpanionFactor::kNAMpanion256x,
-         1),  // Oversampling
+  VALUES(true),                     // Active
+  VALUES(true),                     // Oversampling
+  //VALUES(ENAMpanionFactor::kNAMpanion16x,
+  //       ENAMpanionFactor::kNAMpanionNone,
+  //       ENAMpanionFactor::kNAMpanion256x,
+  //       1),  // Oversampling
 
   // Tweaking (small) knoblets:
 
@@ -183,7 +185,7 @@ const double  kDCBlockFreq      = 10.0;
 class NAMpanion final: public Plugin {
 private:
 
-  ENAMpanionFactor m_PrevOversampling = ENAMpanionFactor(-1); // Invalid value to trigger a reset
+  // ENAMpanionFactor m_PrevOversampling = ENAMpanionFactor(-1); // Invalid value to trigger a reset
 
   // Smoothed parameter values ////////////////////////////////////////////////
 
@@ -195,7 +197,8 @@ private:
   double  m_Output_Real   = DBToAmp(paramValues[kParamOutput      ].def); // Output gain in real terms, from dB
   double  m_Active        =         paramValues[kParamActive      ].def;  // 0.0..1.0
 
-  ENAMpanionFactor m_Oversampling = ENAMpanionFactor(paramValues[kParamOversampling].def);
+  // ENAMpanionFactor m_Oversampling = ENAMpanionFactor(paramValues[kParamOversampling].def);
+  double  m_Oversampling  =         paramValues[kParamOversampling].def;
 
   // Little tweak knoblets:
   double  m_LowFreqMin    =         paramValues[kParamLowFreqMin  ].def;  // Lowest  frequency for low  filters
@@ -299,15 +302,15 @@ private:
 
   Iir::Butterworth::HighPass<1>   m_DCBlock     [kMaxNumChannels + 1];
 
-  OverSampler<sample>             m_Oversampler [kMaxNumChannels][2] = {
-                                    {
+  OverSampler<sample>             m_Oversampler [kMaxNumChannels]/*[2]*/ = {
+                                    //{
                                       OverSampler(EFactor::k16x, false),  // 16x, no block processing
-                                      OverSampler(EFactor::kNone, false)
+                                      /*OverSampler(EFactor::kNone, false)
                                     },
-                                    {
+                                    {*/
                                       OverSampler(EFactor::k16x, false),  // 16x, no block processing
-                                      OverSampler(EFactor::kNone, false)
-                                    }
+                                      /*OverSampler(EFactor::kNone, false)
+                                    }*/
                                   };
 
   WaveShaperAsym2                 m_Waveshaper[kMaxNumChannels];
