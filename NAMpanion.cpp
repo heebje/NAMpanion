@@ -56,7 +56,7 @@ NAMpanion::NAMpanion(const InstanceInfo& info): iplug::Plugin(info, MakeConfig(k
       case kParamOversampling: {
         GetParam(p)->InitEnum(paramNames[p],
                               paramValues[p].def,
-                              { OVERSAMPLING_FACTORS_VA_LIST });
+                              { NAM_OVERSAMPLING_FACTORS_VA_LIST });
         break;
       }
 
@@ -161,27 +161,42 @@ NAMpanion::NAMpanion(const InstanceInfo& info): iplug::Plugin(info, MakeConfig(k
         case kParamOversampling: {
           m_Controls[p] = pGraphics->AttachControl(new IVButtonControl(controlCoordinates[p],
                                                                        [&, pGraphics](IControl* pCaller) {
-            SplashClickActionFunc(pCaller);
-            static IPopupMenu menu {"Menu",
-                                    { OVERSAMPLING_FACTORS_VA_LIST },
-                                    [&](IPopupMenu* pMenu) {
-                                      auto* itemChosen = pMenu->GetChosenItem();
-                                      if (itemChosen) {
-                                        pCaller->As<IVButtonControl>()->SetValueStr(itemChosen->GetText());
-                                        for (int f = 0; f < EFactor::kNumFactors; f++) {
-                                          if (strcmp(itemChosen->GetText(), OSFactorLabels[f]) == 0) {
-                                            SendParameterValueFromUI(kParamOversampling,
-                                                                     GetParam(kParamOversampling)->ToNormalized(f));
-                                            break;
-                                          }
-                                        }
+            try {
+              SplashClickActionFunc(pCaller);
+              static IPopupMenu menu { "Menu",
+                                      { NAM_OVERSAMPLING_FACTORS_VA_LIST },
+                                      [&](IPopupMenu* pMenu) {
+                                        try {
+                                          auto* itemChosen = pMenu->GetChosenItem();
+                                          if (itemChosen) {
+                                            pCaller->As<IVButtonControl>()->SetValueStr(itemChosen->GetText());
+                                            bool found = false;
+                                            for (int f = 0; f < ENAMpanionFactor::kNumNAMpanionFactors; f++) {
+                                              if (strcmp(itemChosen->GetText(), OSFactorLabels[f]) == 0) {
+                                                // Simply set new value here; will get picked up in updateStages()
+                                                m_Oversampling = ENAMpanionFactor(f);
+                                                SendParameterValueFromUI(kParamOversampling,
+                                                                         GetParam(kParamOversampling)->ToNormalized(m_Oversampling));
+                                                found = true;
+                                                break;
+                                              }
+                                            }
+                                            if (!found) {
+                                              FAIL(Something wrong with OS options);
+                                            }
 
+                                          }
+                                        } catch(...) {
+                                          BRK;
+                                        }
                                       }
-                                    }
-                                   };
-            float x, y;
-            pGraphics->GetMouseDownPoint(x, y);
-            pGraphics->CreatePopupMenu(*pCaller, menu, x, y);
+                                     };
+              float x, y;
+              pGraphics->GetMouseDownPoint(x, y);
+              pGraphics->CreatePopupMenu(*pCaller, menu, x, y);
+            } catch(...) {
+              BRK;
+            }
           }, "", style.WithValueText(style.labelText)
                       .WithColor(EVColor::kFG, activeColorSpec.GetColor(EVColor::kPR))));
           m_Controls[p]->As<IVButtonControl>()->SetValueStr(OSFactorLabels[m_Oversampling]);
@@ -261,18 +276,23 @@ void NAMpanion::OnReset() {
 void NAMpanion::OnParamChange(int paramIdx) {
 
   if (paramIdx == kParamOversampling) {
-    m_Oversampling = EFactor(GetParam(paramIdx)->Value());
-    // Non-smoothed parameter, just switch:
-    AdjustOversampling();
+    m_Oversampling = ENAMpanionFactor(GetParam(paramIdx)->Value());
+
+    if (GetUI() && m_Controls[paramIdx]) {
+      m_Controls[paramIdx]->As<IVButtonControl>()->SetValueStr(OSFactorLabels[m_Oversampling]);
+    }
+
   } else {
+
     // Smoothed parameters:
     smoother.change(paramIdx, GetParam(paramIdx)->Value());
+
     if ((paramIdx == kParamActive) && GetUI()) {
       // Reflect in knob appearances:
       updateKnobs();
     }
-  }
 
+  }
 }
 
 void NAMpanion::OnIdle() {
@@ -361,7 +381,8 @@ void NAMpanion::ProcessBlock(sample** inputs, sample** outputs, int nFrames) {
                 m_HighCut[ch].filter(
                   m_LowShelf[ch].filter(
                     m_MidAfter[ch].filter(
-                      m_Oversampler[ch].Process(
+
+                      m_Oversampler[ch][0].Process(
                         m_Drive_Real *
                           m_MidBefore[ch].filter(
                             m_HighShelf[ch].filter(
@@ -369,8 +390,17 @@ void NAMpanion::ProcessBlock(sample** inputs, sample** outputs, int nFrames) {
                                                     // I reported this bug, but the developer denied there was a problem.
                                 inputs[ch][s]))),
                         [&](sample input) {
-                          return m_Waveshaper[ch].processAudioSample(input);
-                        })))));
+                          return m_Oversampler[ch][1].Process(
+                            input,
+                            [&](sample input) {
+                              return m_Waveshaper[ch].processAudioSample(input);
+                            }
+                          );
+                        })
+                    )
+                  )
+                )
+              );
 
           if (m_Active != 1.0) {
 
@@ -454,7 +484,10 @@ inline void NAMpanion::AdjustHigh() {
 
 inline void NAMpanion::AdjustOversampling() {
   for (int ch = 0; ch < kMaxNumChannels; ch++) {
-    m_Oversampler[ch].SetOverSampling(m_Oversampling);
+    m_Oversampler[ch][0].SetOverSampling(EFactor(std::min(int(m_Oversampling),
+                                                          int(EFactor::k16x))));
+    m_Oversampler[ch][1].SetOverSampling(EFactor(std::max(int(m_Oversampling) - int(EFactor::k16x),
+                                                          int(EFactor::kNone))));
   }
 }
 
@@ -466,8 +499,9 @@ inline void NAMpanion::updateStages(bool _resetting) {
   if (_resetting) {
     for (int ch = 0; ch < kMaxNumChannels; ch++) {
 
-      // AdjustOversampling();
-      m_Oversampler[ch].Reset(GetBlockSize());
+      for (int os = 0; os < 2; os++) {
+        m_Oversampler[ch][os].Reset(GetBlockSize());
+      }
 
       m_DCBlock[ch].setup(sr, kDCBlockFreq);
 
@@ -483,12 +517,10 @@ inline void NAMpanion::updateStages(bool _resetting) {
         double v;
         if (smoother.get(p, v) || _resetting) {
           m_Drive_Real = DBToAmp(v);
-
           for (int ch = 0; ch < kMaxNumChannels; ch++) {
             m_Waveshaper[ch].setA((v                  - paramValues[p].min) /
                                   (paramValues[p].max - paramValues[p].min));
           }
-
         }
         break;
       }
@@ -497,7 +529,6 @@ inline void NAMpanion::updateStages(bool _resetting) {
         double v;
         if (smoother.get(p, v) || _resetting) {
           m_LowPos = v;  // Knob setting
-
           AdjustLow();
           AdjustMid();
         }
@@ -508,7 +539,6 @@ inline void NAMpanion::updateStages(bool _resetting) {
         double v;
         if (smoother.get(p, v) || _resetting) {
           m_Mid_dB = v;  // Knob setting == Value in dB
-
           AdjustMid();
         }
         break;
@@ -518,10 +548,8 @@ inline void NAMpanion::updateStages(bool _resetting) {
         double v;
         if (smoother.get(p, v) || _resetting) {
           m_HighPos = v;  // Knob setting
-
           AdjustMid();
           AdjustHigh();
-
         }
         break;
       }
@@ -544,14 +572,11 @@ inline void NAMpanion::updateStages(bool _resetting) {
       }
 
       case kParamOversampling: {
-        // Not smoothed => see OnParamChange()!
-        /*
-        double v;
-        if (smoother.get(p, v) || _resetting) {
-          m_Oversampling = v;
+        // Not smoothed => see OnParamChange()
+        if (m_Oversampling != m_PrevOversampling) {
+          m_PrevOversampling = m_Oversampling;
           AdjustOversampling();
         }
-        */
         break;
       }
 
@@ -560,7 +585,6 @@ inline void NAMpanion::updateStages(bool _resetting) {
         double v;
         if (smoother.get(p, v) || _resetting) {
           m_LowFreqMin = v;
-
           AdjustLow ();
           AdjustMid ();
           AdjustHigh();
@@ -572,7 +596,6 @@ inline void NAMpanion::updateStages(bool _resetting) {
         double v;
         if (smoother.get(p, v) || _resetting) {
           m_HighFreqMax = v;
-
           AdjustLow ();
           AdjustMid ();
           AdjustHigh();
@@ -584,7 +607,6 @@ inline void NAMpanion::updateStages(bool _resetting) {
         double v;
         if (smoother.get(p, v) || _resetting) {
           m_LowMaxBoost = v;
-
           AdjustLow();
         }
         break;
@@ -594,7 +616,6 @@ inline void NAMpanion::updateStages(bool _resetting) {
         double v;
         if (smoother.get(p, v) || _resetting) {
           m_HighMaxBoost = v;
-
           AdjustHigh();
         }
         break;
